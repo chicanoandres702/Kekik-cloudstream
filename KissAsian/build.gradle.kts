@@ -24,3 +24,8 @@ cloudstream {
 
     iconUrl = "https://www.google.com/s2/favicons?domain=kisskh.co&sz=%size%"
 }
+dependencies {
+    // https://mvnrepository.com/artifact/me.xdrop/fuzzywuzzy
+    implementation("me.xdrop:fuzzywuzzy:1.4.0")
+    implementation("org.mozilla:rhino:1.7.14") // Add the Rhino dependency
+}
