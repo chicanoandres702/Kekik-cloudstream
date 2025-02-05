@@ -1,6 +1,6 @@
 {
-    "name": "Turkish Providers Repository | @KekikAkademi",
-    "description": "Türkçe içerikli eklenti havuzu",
+    "name": "Andrew's Repo",
+    "description": "Andrews Repo",
     "manifestVersion": 1,
     "pluginLists": [
       "https://raw.githubusercontent.com/keyiflerolsun/Kekik-cloudstream/builds/plugins.json"
