@@ -3,12 +3,13 @@ package com.hexated
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.loadExtractor
 import kotlinx.coroutines.runBlocking
 import org.jsoup.nodes.Element
 import org.mozilla.javascript.Context
 import org.mozilla.javascript.ScriptableObject
-import org.mozilla.javascript.BaseFunction
+import org.mozilla.javascript.BaseFunction // Corrected import
 import org.mozilla.javascript.Scriptable
 import java.util.regex.Pattern
 
@@ -20,6 +21,7 @@ class KissasianProvider : MainAPI() {
     override val supportedTypes = setOf(
         TvType.AsianDrama,
         TvType.Movie,
+        // TvType.KShow
     )
 
     override val mainPage = mainPageOf(
@@ -32,31 +34,112 @@ class KissasianProvider : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        // (Implementation for getMainPage)
-        TODO()
+        val url = request.data
+        Log.i("Kissasian", "Getting main page: $url, page: $page, request: $request")
+        return try {
+            val document = app.get(url).document
+            Log.i("Kissasian", "Main page document loaded successfully.")
+            Log.i("Kissasian", "Document: ${document.text()}")
+            val dramas = document.select("#top > div > div.content > div.content-left > div > div.block.tab-container > div > ul > li").mapNotNull { dramaElement ->
+                try {
+                    val title = dramaElement.select("a").attr("title").trim()
+                    val link = dramaElement.select("a.img").attr("href")
+                    val posterUrl = dramaElement.select("img").attr("data-original")
+                    val isMovie = url.contains("movie")
+                    newAnimeSearchResponse(title, fixUrl(link), if (isMovie) TvType.Movie else TvType.TvSeries) {
+                        this.posterUrl = fixUrl(posterUrl)
+                    }
+                } catch (e: Exception) {
+                    Log.e("Kissasian", "Error processing drama element: ${dramaElement.text()} - ${e.message}")
+                    null
+                }
+            }
+
+            val hasNextPage = false
+            Log.i("Kissasian", "Main page scraping complete. Found ${dramas.size} dramas.")
+            newHomePageResponse(
+                list = dramas,
+                name = request.name,
+                hasNext = hasNextPage
+            )
+        } catch (e: Exception) {
+            Log.e("Kissasian", "Error getting main page: $url - ${e.message}")
+            HomePageResponse(emptyList())
+        }
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        // (Implementation for search)
-        TODO()
+        val searchUrl = "$mainUrl/?s=$query"
+        Log.i("Kissasian", "Searching for: $query, URL: $searchUrl")
+        return try {
+            val document = app.get(searchUrl).document
+            Log.i("Kissasian", "Search document loaded successfully.")
+
+            val searchResults: List<SearchResponse> = document.select("#top > div > div.content > div.content-left > div > div.block.tab-container > div > ul > li").mapNotNull { searchElement ->
+                try {
+                    val title = searchElement.select("a").attr("title").trim()
+                    val link = searchElement.select("a.img").attr("href")
+                    val posterUrl = searchElement.select("img").attr("data-original")
+                    val isMovie = searchUrl.contains("movie")
+
+                    Log.i("Kissasian", "Found search result: Title=$title, Link=$link, Poster=$posterUrl")
+                    newAnimeSearchResponse(title, fixUrl(link), if (isMovie) TvType.Movie else TvType.TvSeries) {
+                        this.posterUrl = fixUrl(posterUrl)
+                    }
+                } catch (e: Exception) {
+                    Log.e("Kissasian", "Error processing search element: ${searchElement.text()} - ${e.message}")
+                    null
+                }
+            }
+            Log.i("Kissasian", "Search complete. Found ${searchResults.size} results.")
+            searchResults
+        } catch (e: Exception) {
+            Log.e("Kissasian", "Error during search for: $query - ${e.message}")
+            emptyList()
+        }
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        // (Implementation for load)
-        TODO()
-    }
+        Log.i("Kissasian", "Loading details page: $url")
+        return try {
+            val document = app.get(url).document
+            Log.i("Kissasian", "Details page document loaded successfully.")
 
-    fun extractUrlFromJavascript(scriptCode: String): String? {
-        val regex = "window\\.location(?:\\s*)=(?:\\s*)\\{(?:\\s*)['\"]href['\"](?:\\s*):(?:\\s*)['\"](.*?)(?:'|\")[\\s\\r\\n]*\\};" // Non-greedy matching
-        val pattern = Pattern.compile(regex, Pattern.MULTILINE)
-        val matcher = pattern.matcher(scriptCode)
+            val title = document.select("#top > div.container > div.content > div.content-left > div.block > div.details > div.img > img").attr("alt").trim()
+            val posterUrl = document.select("#top > div.container > div.content > div.content-left > div.block > div.details > div.img > img").attr("src")
+            val description = document.select(".block-watch p").text()
 
-        return if (matcher.find()) {
-            val url = matcher.group(1)
-            Log.i("UrlExtractor", "Found URL: $url")
-            url
-        } else {
-            Log.i("UrlExtractor", "No URL found in JavaScript code.")
+            Log.i("Kissasian", "Details: Title=$title, Poster=$posterUrl, Description=$description")
+
+            val episodes = document.select(".all-episode li").mapNotNull { episodeElement ->
+                try {
+                    val episodeUrl = episodeElement.select("a").attr("href")
+                    val episodeNum = episodeElement.select("h3.title").text().extractEpisodeNumber()
+                    Log.i("Kissasian", "Found episode: URL=$episodeUrl, Number=$episodeNum")
+
+                    Episode(
+                        data = fixUrl(episodeUrl),
+                        episode = episodeNum
+                    )
+                } catch (e: Exception) {
+                    Log.e("Kissasian", "Error processing episode element: ${episodeElement.text()} - ${e.message}")
+                    null
+                }
+            }
+
+            val isMovie = false
+            newTvSeriesLoadResponse(
+                title,
+                url,
+                if (isMovie) TvType.Movie else TvType.TvSeries,
+                episodes
+            ) {
+                this.posterUrl = fixUrl(posterUrl)
+                this.plot = description
+            }
+
+        } catch (e: Exception) {
+            Log.e("Kissasian", "Error loading details page: $url - ${e.message}")
             null
         }
     }
@@ -200,6 +283,21 @@ class KissasianProvider : MainAPI() {
         }
     }
 
+    fun extractUrlFromJavascript(scriptCode: String): String? {
+        val regex = "window\\.location(?:\\s*)=(?:\\s*)\\{(?:\\s*)['\"]href['\"](?:\\s*):(?:\\s*)['\"](.*?)(?:'|\")[\\s\\r\\n]*\\};" // Non-greedy matching
+        val pattern = Pattern.compile(regex, Pattern.MULTILINE)
+        val matcher = pattern.matcher(scriptCode)
+
+        return if (matcher.find()) {
+            val url = matcher.group(1)
+            Log.i("UrlExtractor", "Found URL: $url")
+            url
+        } else {
+            Log.i("UrlExtractor", "No URL found in JavaScript code.")
+            null
+        }
+    }
+
     private fun Element.cleanUpDescription(): String {
         return this.text().replace("Dear user watch.*".toRegex(), "").trim()
     }
@@ -211,7 +309,6 @@ class KissasianProvider : MainAPI() {
     }
 }
 
-// test code below
 fun main() {
     val kissasianProvider = KissasianProvider()
     runBlocking {
