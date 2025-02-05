@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.loadExtractor
 import kotlinx.coroutines.runBlocking // Import the runBlocking function
+import kotlinx.coroutines.selects.select
 import org.jsoup.nodes.Element
 
 class KissasianProvider : MainAPI() {
@@ -149,7 +150,7 @@ class KissasianProvider : MainAPI() {
         return try {
             val document = app.get(data).document
             val iframeUrl = document.select("#block-tab-video > div > div > iframe").attr("src")
-
+            Log.i("Kissasian", "Iframe URL: $iframeUrl")
             if (iframeUrl.isNullOrEmpty()) {
                 Log.w("Kissasian", "No iframe URL found for episode: $data")
                 return false
@@ -159,15 +160,15 @@ class KissasianProvider : MainAPI() {
             Log.i("Kissasian", "Full Iframe URL: $fullIframeUrl")
 
             loadExtractor(fullIframeUrl, subtitleCallback, callback)
-            Log.i("Kissasian", "Extractor loaded successfully.")
+            Log.i("Kissasian", "Extractor loaded successfully (hopefully).")
 
-            true
+            return true
         } catch (e: Exception) {
-            Log.e("Kissasian", "Error loading links for episode: $data - ${e.message}") // Corrected Log.e
-            false
+            Log.e("Kissasian", "Error loading links for episode: $data - ${e.message}")
+            return false
         }
     }
-
+    
     private fun Element.cleanUpDescription(): String {
         return this.text().replace("Dear user watch.*".toRegex(), "").trim()
     }
@@ -182,8 +183,9 @@ class KissasianProvider : MainAPI() {
 fun main() {
     val kissasianProvider = KissasianProvider()
     runBlocking { // Wrap the call in runBlocking
-        kissasianProvider.getMainPage(1, MainPageRequest("Popular Drama", "https://kissasian.com.lv/most-popular-drama/", true))
-        kissasianProvider.load("https://kissasian.com.lv/series/are-you-the-one-2024/")
+//        kissasianProvider.getMainPage(1, MainPageRequest("Popular Drama", "https://kissasian.com.lv/most-popular-drama/", true))
+//        kissasianProvider.load("https://kissasian.com.lv/series/are-you-the-one-2024/")
+        kissasianProvider.loadLinks("https://kissasian.com.lv/cinderella-at-2-am-2024-episode-1/", false, {}, {})
     }
 
 }
