@@ -13,7 +13,7 @@ class KissasianProvider: MainAPI() {
     override val supportedTypes = setOf(
         TvType.AsianDrama,
         TvType.Movie,
-        TvType.KShow
+        TvType.KShow // Corrected type
     )
 
     override val mainPage = mainPageOf(
@@ -65,7 +65,7 @@ class KissasianProvider: MainAPI() {
 
         val title = document.select(".watch-drama h1").text().trim()
         val posterUrl = document.select(".watch-drama img").attr("src")
-        val description = document.select(".block-watch p").text().cleanUpDescription()
+        val description = document.select(".block-watch p").firstOrNull()?.cleanUpDescription()?: "" // Corrected call
         val episodes = document.select(".all-episode li").map { episodeElement ->
             val episodeNum = episodeElement.select("h3.title").text().extractEpisodeNumber()
             val episodeUrl = episodeElement.select("a").attr("href")
