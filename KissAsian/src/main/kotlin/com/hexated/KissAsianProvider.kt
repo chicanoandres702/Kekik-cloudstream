@@ -25,9 +25,10 @@ class KissasianProvider : MainAPI() {
     )
 
     override val mainPage = mainPageOf(
+        "$mainUrl/" to "Trending",
         "$mainUrl/most-popular-drama/" to "Popular Drama",
-        "$mainUrl/recently-added-movie/" to "Recently Movie",
-        "$mainUrl/recently-added-kshow/" to "Recently Kshow"
+        "$mainUrl/country/south-korea/" to "South Korea",
+        "$mainUrl/country/thailand/" to "Thailand"
     )
 
     override suspend fun getMainPage(
@@ -77,10 +78,14 @@ class KissasianProvider : MainAPI() {
 
             val searchResults: List<SearchResponse> = document.select("#top > div > div.content > div.content-left > div > div.block.tab-container > div > ul > li").mapNotNull { searchElement ->
                 try {
-                    val title = searchElement.select("a").attr("title").trim()
+                    val title = searchElement.select("a").attr("title")
+                    Log.i("Kissasian", "Found search result: Title=$title")
                     val link = searchElement.select("a").attr("href")
+                    Log.i("Kissasian", "Found search result: Link=$link")
                     val posterUrl = searchElement.select("img").attr("src")
+                    Log.i("Kissasian", "Found search result: Poster=$posterUrl")
                     val isMovie = searchUrl.contains("movie")
+                    Log.i("Kissasian", "Found search result: IsMovie=$isMovie")
 
                     Log.i("Kissasian", "Found search result: Title=$title, Link=$link, Poster=$posterUrl")
                     newAnimeSearchResponse(title, fixUrl(link), if (isMovie) TvType.Movie else TvType.TvSeries) {
@@ -92,7 +97,7 @@ class KissasianProvider : MainAPI() {
                 }
             }
             Log.i("Kissasian", "Search complete. Found ${searchResults.size} results.")
-            searchResults
+            return searchResults
         } catch (e: Exception) {
             Log.e("Kissasian", "Error during search for: $query - ${e.message}")
             emptyList()
@@ -312,6 +317,6 @@ class KissasianProvider : MainAPI() {
 fun main() {
     val kissasianProvider = KissasianProvider()
     runBlocking {
-        kissasianProvider.loadLinks("https://kissasian.com.lv/cinderella-at-2-am-2024-episode-1/", false, {}, {})
+        kissasianProvider.search("petri")
     }
 }
