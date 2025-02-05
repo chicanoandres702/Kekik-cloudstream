@@ -1,0 +1,82 @@
+# Bu araç @keyiflerolsun tarafından | @KekikAkademi için yazılmıştır.
+name: CloudStream Repo & Plugin Generator
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.yml"
+      - "**/*.jpg"
+      - "**/*.png"
+      - "**/*.py"
+
+jobs:
+  CloudStreamDerleyici:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "'src' Depo Kontrolü"
+        uses: actions/checkout@v4.2.2
+        with:
+          path: "src"
+
+      - name: "'build' Depo Kontrolü (Conditional)"
+        id: checkout_builds # Add an ID to the step
+        uses: actions/checkout@v4.2.2
+        with:
+          ref: "builds"
+          path: "builds"
+        continue-on-error: true # Allow workflow to continue if this step fails. Crucial!
+
+      - name: Check if 'builds' checkout was successful
+        id: check_builds_checkout
+        run: |
+          if [[ -d "$GITHUB_WORKSPACE/builds" ]]; then
+            echo "BUILD_DIR_EXISTS=true" >> $GITHUB_ENV
+          else
+            echo "BUILD_DIR_EXISTS=false" >> $GITHUB_ENV
+          fi
+
+      - name: Eski Derlemeleri Temizle (Conditional)
+        if: env.BUILD_DIR_EXISTS == 'true'
+        run: |
+          if [ -d "$GITHUB_WORKSPACE/builds" ]; then
+            find "$GITHUB_WORKSPACE/builds" -name "*.cs3" -delete
+          fi
+
+      - name: JDK 17 Ayarla
+        if: env.BUILD_DIR_EXISTS == 'true'
+        uses: actions/setup-java@v4.6.0
+        with:
+          distribution: adopt
+          java-version: 17
+
+      - name: Android SDK Ayarla
+        if: env.BUILD_DIR_EXISTS == 'true'
+        uses: android-actions/setup-android@v3.2.2
+
+      - name: Eklentileri Derle (Conditional)
+        if: env.BUILD_DIR_EXISTS == 'true'
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          chmod +x gradlew
+          ./gradlew make makePluginsJson || exit 1  # Fail if gradlew fails
+          cp **/build/*.cs3 $GITHUB_WORKSPACE/builds
+          cp build/plugins.json $GITHUB_WORKSPACE/builds
+
+      - name: Derlemeleri Yükle (Conditional)
+        if: env.BUILD_DIR_EXISTS == 'true'
+        run: |
+          cd $GITHUB_WORKSPACE/builds
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add .
+          git commit --amend -m "$GITHUB_SHA 'nın Derlenmesi" || echo "No changes to commit" # if nothing to commit, skip the commit
+          git push --force origin builds:builds || echo "Failed to push. Check permissions or if branch exists remotely" # Push to the 'builds' branch
