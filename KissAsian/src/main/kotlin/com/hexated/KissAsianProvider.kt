@@ -13,7 +13,7 @@ class KissasianProvider: MainAPI() {
     override val supportedTypes = setOf(
         TvType.AsianDrama,
         TvType.Movie,
-        TvType.KShow // Corrected type
+        // TvType.KShow // Corrected type
     )
 
     override val mainPage = mainPageOf(
