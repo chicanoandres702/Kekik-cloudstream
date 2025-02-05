@@ -1,8 +1,7 @@
-package com.hexated
+package com.hexated // Update package name if needed
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
@@ -104,7 +103,7 @@ class KissasianProvider: MainAPI() {
                 name,
                 iframeUrl,
                 data, // Referer
-                true
+                1080 // Or a suitable quality value
             )
         )
 
