@@ -35,6 +35,12 @@ class InatBox : MainAPI() {
     // ! This urls come from ${categoryUrl}/ct.php | I assume they won't change in the near future
     override val mainPage = mainPageOf(
         "https://boxbc.sbs/CDN/001_STR/boxbc.sbs/spor_v2.php" to "Spor Kanalları",
+        "${contentUrl}/tv/ulusal.php"                         to "Ulusal",
+        "${contentUrl}/tv/haber.php"                          to "Haber",
+        "${contentUrl}/tv/belgesel.php"                       to "Belgesel",
+        "${contentUrl}/tv/ulusal.php"                         to "Ulusal",
+        "${contentUrl}/tv/cocuk.php"                          to "Çocuk",
+        "${contentUrl}/tv/sinema.php"                         to "Sinema",
         "${contentUrl}/ex/index.php"                          to "EXXEN",
         "${contentUrl}/ga/index.php"                          to "Gain",
         "${contentUrl}/blu/index.php"                         to "BluTV",
@@ -48,7 +54,7 @@ class InatBox : MainAPI() {
         "${contentUrl}/yabanci-dizi/index.php"                to "Yabancı Diziler",
         "${contentUrl}/yerli-dizi/index.php"                  to "Yerli Diziler",
         "${contentUrl}/film/yerli-filmler.php"                to "Yerli Filmler",
-        "${contentUrl}/film/4k-film-exo.php"                  to "4K Film İzle | Exo"
+        "${contentUrl}/film/4k-film-exo.php"                  to "4K Film İzle | Exo",
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -177,7 +183,7 @@ class InatBox : MainAPI() {
                     val chType    = item.getString("chType")
 
                     val searchResponse = when (chType) {
-                        "live_url", "tekli_regex_lb_sh_3" -> LiveSearchResponse(
+                        "live_url", "tekli_regex_lb_sh_3", "cable_sh", -> LiveSearchResponse(
                             name      = name,
                             url       = item.toString(),
                             apiName   = this.name,
@@ -260,8 +266,8 @@ class InatBox : MainAPI() {
             val chType = item.getString("chType")
 
             val loadResponse = when (chType) {
-                "live_url", "tekli_regex_lb_sh_3" -> parseLiveStreamLoadResponse(item)
-                else                              -> parseMovieResponse(item)
+                "live_url", "tekli_regex_lb_sh_3", "cable_sh" -> parseLiveStreamLoadResponse(item)
+                else                                          -> parseMovieResponse(item)
             }
             return loadResponse
         } else {
@@ -312,7 +318,8 @@ class InatBox : MainAPI() {
                             source  = this.name,
                             name    = this.name,
                             url     = sourceUrl,
-                            referer = "https://google.com/",
+                            referer = "http://kablowebtv.com/",
+                            headers = mapOf("cookie" to "ASP.NET_SessionId=klzdsxrl5rptypvzcaoghbim;emwId=51093b0c-e1a6-4684-81dc-16af380240e1;eSessionId=35012045"),
                             quality = Qualities.Unknown.value,
                             type    = ExtractorLinkType.M3U8
                         )
@@ -519,9 +526,15 @@ class InatBox : MainAPI() {
             var url       = item.getString("chUrl")
             val posterUrl = item.getString("chImg")
 
-            val jsonResponse = makeInatRequest(url) ?: return null
-            val firstItem    = JSONObject(jsonResponse)
-            val dataUrl      = firstItem.getString("chUrl")
+            var dataUrl = ""
+
+            if (url.contains(".m3u")) {
+                dataUrl = url
+            } else {
+                val jsonResponse = makeInatRequest(url) ?: return null
+                val firstItem    = JSONObject(jsonResponse)
+                dataUrl          = firstItem.getString("chUrl")
+            }
 
             // Return a MovieLoadResponse
             return LiveStreamLoadResponse(
