@@ -78,8 +78,8 @@ class KissasianProvider : MainAPI() {
             val searchResults: List<SearchResponse> = document.select("#top > div > div.content > div.content-left > div > div.block.tab-container > div > ul > li").mapNotNull { searchElement ->
                 try {
                     val title = searchElement.select("a").attr("title").trim()
-                    val link = searchElement.select("a.img").attr("href")
-                    val posterUrl = searchElement.select("img").attr("data-original")
+                    val link = searchElement.select("a").attr("href")
+                    val posterUrl = searchElement.select("img").attr("src")
                     val isMovie = searchUrl.contains("movie")
 
                     Log.i("Kissasian", "Found search result: Title=$title, Link=$link, Poster=$posterUrl")
