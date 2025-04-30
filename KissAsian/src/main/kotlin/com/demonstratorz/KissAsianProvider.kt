@@ -174,6 +174,7 @@ override suspend fun loadLinks(
         Log.i("Kissasian", "Fetched Vidmoly HTML content.")
 
         // *** Apply the regex to find the video link ***
+        // Updated regex based on the provided example URL structure
         val videoUrlRegex = Regex("(https?://[^/]+/hls/,(?:[^,]+?,){1,2}[^,]+?,?\\.urlset/master\\.m3u8)")
         val matchResult = videoUrlRegex.find(vidmolyHtml)
 
@@ -188,7 +189,7 @@ override suspend fun loadLinks(
                     "Vidmoly", // Quality (you might need to determine quality differently)
                     videoUrl,
                     "", // Referer
-                    Qualities.Unknown.value, // Quality value
+                    0, // Quality value - Changed from Qualities.Unknown.value to 0
                     true // IsM3u8
                 )
             )
@@ -197,9 +198,7 @@ override suspend fun loadLinks(
             Log.w("Kissasian", "No video URL found in Vidmoly HTML using regex.")
             // Your existing JavaScript execution and fallback logic would go here
             // if the regex fails to find the link.
-             // ... (rest of your existing loadLinks function for fallback)
-             // If you keep the JS execution, you'll need to analyze if the vidmoly page
-             // uses the same JS logic as the previous iframe source.
+            // ... (rest of your existing loadLinks function for fallback)
         }
 
         return false // Return false if no links were found by any method
