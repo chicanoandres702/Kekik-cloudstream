@@ -1,5 +1,5 @@
 group = "com.demonstratorz" // Replace with your group ID
-version = 3 // Integer version number
+version = 4 // Integer version number
 
 cloudstream {
     description = "Kissasian Provider"
