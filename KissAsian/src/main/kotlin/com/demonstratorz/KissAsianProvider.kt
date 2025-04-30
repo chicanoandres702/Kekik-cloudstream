@@ -158,133 +158,51 @@ override suspend fun loadLinks(
     Log.i("Kissasian", "Loading links for episode: $data")
     return try {
         val document = app.get(data).document
-        // *** AREA 1: Iframe URL Extraction ***
         val iframeUrl = document.select("#block-tab-video > div > div > iframe").attr("src")
         Log.i("Kissasian", "Iframe URL: $iframeUrl")
         if (iframeUrl.isNullOrEmpty()) {
             Log.w("Kissasian", "No iframe URL found for episode: $data")
-            // You might want to add more logging here to inspect the 'document' content
-            // to see why the iframe was not found.
             return false
         }
 
         var currentIframeUrl = fixUrl(iframeUrl)
         Log.i("Kissasian", "Initial Iframe URL: $currentIframeUrl")
 
-        // The domain replacement might need adjustment if the domain changes
-        val embasicDocument = app.get(currentIframeUrl.replace("asianbxkiun.pro", "embasic.pro"), referer = "$mainUrl/").document
-        // Add logging here to inspect the 'embasicDocument' content
-        // Log.i("Kissasian", "Embasic Document: ${embasicDocument.text()}")
+        // Fetch the content of the vidmoly.to embed page
+        val vidmolyDocument = app.get(currentIframeUrl, referer = "$mainUrl/").document
+        val vidmolyHtml = vidmolyDocument.text() // Get the full HTML content as a string
+        Log.i("Kissasian", "Fetched Vidmoly HTML content.")
 
+        // *** Apply the regex to find the video link ***
+        val videoUrlRegex = Regex("(https?://[^/]+/hls/,(?:[^,]+?,){1,2}[^,]+?,?\\.urlset/master\\.m3u8)")
+        val matchResult = videoUrlRegex.find(vidmolyHtml)
 
-        // *** AREA 2: JavaScript Execution and URL Extraction ***
-        val scriptCode = embasicDocument.select("script[data-cfasync=false]").joinToString("\n") { it.data() }
-        Log.i("Kissasian", "Extracted JavaScript code: $scriptCode")
+        val videoUrl = matchResult?.groups?.get(1)?.value
 
-        val cryptoValue = embasicDocument.select("script[data-name=crypto]").firstOrNull()?.attr("data-value") ?: ""
-        Log.i("Kissasian", "Decryption Value: $cryptoValue")
-
-        // Rhino Context Setup and Execution
-        val cx = Context.enter()
-        cx.optimizationLevel = -1
-        Log.i("Kissasian", "Rhino Context Initialized")
-        try {
-            val scope: ScriptableObject = cx.initStandardObjects()
-            scope.associateValue("url", currentIframeUrl)
-            scope.associateValue("crypto", cryptoValue)
-
-            // Implement the createElement function within the scope:
-            val createElementFunction = object : BaseFunction() {
-                override fun call(cx: Context, scope: Scriptable, thisObj: Scriptable, args: Array<Any>): Any {
-                    val tagName = args.getOrNull(0)?.toString() ?: ""
-                    Log.i("JS", "Creating element $tagName")
-                    val element: ScriptableObject = org.mozilla.javascript.NativeObject()
-                    element.defineProperty("setAttribute", object : BaseFunction() {
-                        override fun call(cx: Context, scope: Scriptable, thisObj: Scriptable, args: Array<Any>): Any {
-                            val attrName = args.getOrNull(0)?.toString() ?: ""
-                            val attrValue = args.getOrNull(1)?.toString() ?: ""
-                            Log.i("JS", "setAttribute: tag=$tagName, name=$attrName, value=$attrValue")
-                            // Add logging here to see attributes being set
-                            // Log.i("JS", "Setting attribute: $attrName = $attrValue on $tagName")
-                            return Context.getUndefinedValue()
-                        }
-                    }, ScriptableObject.READONLY)
-
-                    element.defineProperty("data", Context.getUndefinedValue(), ScriptableObject.EMPTY) // Add a data property
-                    return element
-                }
-            }
-            scope.defineProperty("createElement", createElementFunction, ScriptableObject.READONLY)
-
-            val jsCode = """
-                var document = {};
-                document.cookie = '';
-                document.createElement = this.createElement;
-                var window = this;
-                window.location = { 'href': this.url };
-                window.eval = function() {};
-
-                function $(query) {
-                    return {
-                        width: () => 100
-                    }
-                }
-
-                var script = document.createElement('script');
-                script.setAttribute('data-name', 'crypto');
-                script.setAttribute('data-value', '$cryptoValue');
-                // Log.i("Script" + scriptCode) // This log is commented out in your original code
-
-                """
-
-            cx.evaluateString(scope, jsCode, "Kissasian", 1, null)
-
-            // Execute the main script after setting up the context
-            try {
-                cx.evaluateString(scope, scriptCode, "KissasianMain", 1, null)
-                Log.i("Kissasian", "Main Javascript Evaluated")
-                // After evaluation, you might need to inspect the scope
-                // to see if any variables now hold the video URL.
-                // This requires understanding the specific JS code.
-            } catch (e: Exception) {
-                Log.e("Kissasian", "Error executing Main JavaScript: ${e.message} ${e}")
-            }
-
-            val url: String? = extractUrlFromJavascript(scriptCode)
-            Log.i("Kissasian", "Extracted URL: $url")
-            if (url != null) {
-                Log.i("Urls", "Extracted Javascript URL: $url")
-                loadExtractor(url, subtitleCallback, callback);
-            } else {
-                Log.w("Kissasian", "No URL found in JavaScript code.")
-
-                // *** AREA 3: Fallback Method ***
-                val currentIframeUrl = fixUrl(currentIframeUrl)
-                // load webpage as a fallback
-                val document = app.get(currentIframeUrl).document
-                val body = document.body()
-                body.select("li").map { video ->
-                    try {
-                        if (video.attr("data-video").isNotEmpty()) {
-                            var videoLink = app.get(video.attr("data-video"))
-                            if (videoLink.isSuccessful) {
-                                loadExtractor(videoLink.url, subtitleCallback, callback)
-                            }
-                        }
-                    }
-                    catch (e: Exception) {
-                        Log.e("Kissasian", "Error loading links from fallback: ${e.message}")
-                    }
-                }
-            }
+        if (videoUrl != null) {
+            Log.i("Kissasian", "Extracted video URL: $videoUrl")
+            // Assuming the extracted URL is a direct playable link (like M3U8)
+            callback(
+                ExtractorLink(
+                    "Vidmoly", // Extractor name
+                    "Vidmoly", // Quality (you might need to determine quality differently)
+                    videoUrl,
+                    "", // Referer
+                    Qualities.Unknown.value, // Quality value
+                    true // IsM3u8
+                )
+            )
             return true
-
-        } catch (e: Exception) {
-            Log.e("Kissasian", "Error executing JavaScript or processing links: ${e.message} ${e}")
-            return false
-        } finally {
-            Context.exit()
+        } else {
+            Log.w("Kissasian", "No video URL found in Vidmoly HTML using regex.")
+            // Your existing JavaScript execution and fallback logic would go here
+            // if the regex fails to find the link.
+             // ... (rest of your existing loadLinks function for fallback)
+             // If you keep the JS execution, you'll need to analyze if the vidmoly page
+             // uses the same JS logic as the previous iframe source.
         }
+
+        return false // Return false if no links were found by any method
 
     } catch (e: Exception) {
         Log.e("Kissasian", "Error loading links for episode: $data - ${e.message}")
