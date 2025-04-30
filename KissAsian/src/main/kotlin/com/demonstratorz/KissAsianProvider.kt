@@ -12,11 +12,13 @@ import org.mozilla.javascript.ScriptableObject
 import org.mozilla.javascript.BaseFunction
 import org.mozilla.javascript.Scriptable
 import java.util.regex.Pattern
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
 
-// Import necessary utilities for newExtractorLink
+// Import necessary utilities
 import com.lagradost.cloudstream3.utils.newExtractorLink
-import com.lagradost.cloudstream3.utils.Qualities // Used for quality value
-import com.lagradost.cloudstream3.utils.INFER_TYPE // Used for link type inference
+import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.cloudstream3.utils.INFER_TYPE
 
 
 class KissasianProvider : MainAPI() {
@@ -46,7 +48,8 @@ class KissasianProvider : MainAPI() {
         return try {
             val document = app.get(url).document
             Log.i("Kissasian", "Main page document loaded successfully.")
-            Log.i("Kissasian", "Document: ${document.text()}")
+            // Log.i("Kissasian", "Document: ${document.text()}") // Keep commented out for cleaner logs unless debugging
+
             val dramas = document.select("#top > div > div.content > div.content-left > div > div.block.tab-container > div > ul > li").mapNotNull { dramaElement ->
                 try {
                     val title = dramaElement.select("a").attr("title").trim()
@@ -57,12 +60,13 @@ class KissasianProvider : MainAPI() {
                         this.posterUrl = fixUrl(posterUrl)
                     }
                 } catch (e: Exception) {
-                    Log.e("Kissasian", "Error processing drama element: ${dramaElement.text()} - ${e.message}", e)
+                    // Corrected Log.e call - line 60 in this combined code
+                    Log.e("Kissasian", "Error processing drama element: ${dramaElement.text()} - ${e.message}")
                     null
                 }
             }
 
-            val hasNextPage = false
+            val hasNextPage = false // Check if there's a next page button/link if pagination exists
             Log.i("Kissasian", "Main page scraping complete. Found ${dramas.size} dramas.")
             newHomePageResponse(
                 list = dramas,
@@ -85,20 +89,21 @@ class KissasianProvider : MainAPI() {
             val searchResults: List<SearchResponse> = document.select("#top > div > div.content > div.content-left > div > div.block.tab-container > div > ul > li").mapNotNull { searchElement ->
                 try {
                     val title = searchElement.select("a").attr("title")
-                    Log.i("Kissasian", "Found search result: Title=$title")
+                    // Log.i("Kissasian", "Found search result: Title=$title")
                     val link = searchElement.select("a").attr("href")
-                    Log.i("Kissasian", "Found search result: Link=$link")
+                    // Log.i("Kissasian", "Found search result: Link=$link")
                     val posterUrl = searchElement.select("img").attr("src")
-                    Log.i("Kissasian", "Found search result: Poster=$posterUrl")
+                    // Log.i("Kissasian", "Found search result: Poster=$posterUrl")
                     val isMovie = searchUrl.contains("movie")
-                    Log.i("Kissasian", "Found search result: IsMovie=$isMovie")
+                    // Log.i("Kissasian", "Found search result: IsMovie=$isMovie")
 
-                    Log.i("Kissasian", "Found search result: Title=$title, Link=$link, Poster=$posterUrl")
+                    // Log.i("Kissasian", "Found search result: Title=$title, Link=$link, Poster=$posterUrl")
                     newAnimeSearchResponse(title, fixUrl(link), if (isMovie) TvType.Movie else TvType.TvSeries) {
                         this.posterUrl = fixUrl(posterUrl)
                     }
                 } catch (e: Exception) {
-                    Log.e("Kissasian", "Error processing search element: ${searchElement.text()} - ${e.message}", e)
+                    // Corrected Log.e call - line 101 in this combined code
+                    Log.e("Kissasian", "Error processing search element: ${searchElement.text()} - ${e.message}")
                     null
                 }
             }
@@ -118,8 +123,9 @@ class KissasianProvider : MainAPI() {
 
             val title = document.select("#top > div.container > div.content > div.content-left > div.block > div.details > div.img > img").attr("alt").trim()
             val posterUrl = document.select("#top > div.container > div.content > div.content-left > div.block > div.details > div.img > img").attr("src")
-            // Using original cleanUpDescription extension on Element
-            val description = document.select(".block-watch p").cleanUpDescription()
+            // Corrected usage of cleanUpDescriptionString - line 122/123 in this combined code
+            val description = document.select(".block-watch p").text().cleanUpDescriptionString()
+
 
             Log.i("Kissasian", "Details: Title=$title, Poster=$posterUrl, Description=$description")
 
@@ -175,6 +181,7 @@ class KissasianProvider : MainAPI() {
             var currentIframeUrl = fixUrl(iframeUrl)
             Log.i("Kissasian", "Initial Iframe URL: $currentIframeUrl")
 
+            // Original code's logic for fetching embasicDocument and JavaScript execution
             val embasicDocument = app.get(currentIframeUrl.replace("asianbxkiun.pro", "embasic.pro"), referer = "$mainUrl/").document
 
             // 1. Extract JavaScript code
@@ -203,7 +210,6 @@ class KissasianProvider : MainAPI() {
                     override fun call(cx: Context, scope: Scriptable, thisObj: Scriptable, args: Array<Any>): Any {
                         val tagName = args.getOrNull(0)?.toString() ?: ""
                         Log.i("JS", "Creating element $tagName")
-                        // Return a dummy object, add more properties as needed
                         val element: ScriptableObject = org.mozilla.javascript.NativeObject()
                         element.defineProperty("setAttribute", object : BaseFunction() {
                             override fun call(cx: Context, scope: Scriptable, thisObj: Scriptable, args: Array<Any>): Any {
@@ -248,28 +254,16 @@ class KissasianProvider : MainAPI() {
                 // Execute the main script after setting up the context
                 try {
                     cx.evaluateString(scope, scriptCode, "KissasianMain", 1, null)
-                    Log.i("Kissasian", "Main Javascript Evaluated")
+                    // Corrected Log.e call - line 205 in this combined code
                 } catch (e: Exception) {
-                    Log.e("Kissasian", "Error executing Main JavaScript: ${e.message} ${e}")
+                    Log.e("Kissasian", "Error executing Main JavaScript: ${e.message}")
                 }
 
                 val url: String? = extractUrlFromJavascript(scriptCode)
                 Log.i("Kissasian", "Extracted URL: $url")
                 if (url != null) {
                     Log.i("Urls", "Extracted Javascript URL: $url")
-                    // *** Original code using deprecated ExtractorLink constructor ***
-                    // callback(
-                    //     ExtractorLink(
-                    //         "Vidmoly", // Extractor name
-                    //         "Vidmoly", // Quality
-                    //         url,
-                    //         "", // Referer
-                    //         0, // Quality value
-                    //         true // IsM3u8
-                    //     )
-                    // )
-
-                    // *** Use newExtractorLink based on the LiveTV example ***
+                    // *** Use newExtractorLink based on the LiveTV example (fixing deprecation) ***
                     callback(
                         newExtractorLink(
                             "Vidmoly", // qualityName
@@ -277,7 +271,7 @@ class KissasianProvider : MainAPI() {
                             url,  // url
                             INFER_TYPE // type - infer from URL extension
                         ) {
-                            this.quality = Qualities.Unknown.value // quality value (using Qualities enum)
+                            this.quality = Qualities.Unknown.value // quality value
                             this.referer = currentIframeUrl // referer
                         }
                     )
@@ -302,6 +296,7 @@ class KissasianProvider : MainAPI() {
                             }
                         }
                         catch (e: Exception) {
+                            // Corrected Log.e call - line 340 in this combined code (approximate based on original code)
                             Log.e("Kissasian", "Error loading links for episode: $data - ${e.message}")
                         }
                     }
@@ -310,7 +305,8 @@ class KissasianProvider : MainAPI() {
                 return true
 
             } catch (e: Exception) {
-                Log.e("Kissasian", "Error executing JavaScript: ${e.message} ${e}")
+                // Corrected Log.e call - line 205 in this combined code (within the outer catch)
+                Log.e("Kissasian", "Error executing JavaScript or processing links: ${e.message}")
                 return false
             } finally {
                 Context.exit()
@@ -337,9 +333,16 @@ class KissasianProvider : MainAPI() {
         }
     }
 
+    // Original cleanUpDescription extension function for Element (causing error)
     private fun Element.cleanUpDescription(): String {
         return this.text().replace("Dear user watch.*".toRegex(), "").trim()
     }
+
+    // Added new extension function for String based on error fix
+    private fun String.cleanUpDescriptionString(): String {
+        return this.replace("Dear user watch.*".toRegex(), "").trim()
+    }
+
 
     private fun String.extractEpisodeNumber(): Int {
         val episodeRegex = Regex("Episode\\s*(\\d+)", RegexOption.IGNORE_CASE)
