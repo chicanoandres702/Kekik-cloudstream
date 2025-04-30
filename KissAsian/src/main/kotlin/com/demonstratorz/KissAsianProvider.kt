@@ -183,16 +183,7 @@ override suspend fun loadLinks(
         if (videoUrl != null) {
             Log.i("Kissasian", "Extracted video URL: $videoUrl")
             // Assuming the extracted URL is a direct playable link (like M3U8)
-            callback(
-                ExtractorLink(
-                    "Vidmoly", // Extractor name
-                    "Vidmoly", // Quality (you might need to determine quality differently)
-                    videoUrl,
-                    "", // Referer
-                    0, // Quality value - Changed from Qualities.Unknown.value to 0
-                    true // IsM3u8
-                )
-            )
+            callback(ExtractorLink("Vidmoly", "Vidmoly", videoUrl, "", 0, true))
             return true
         } else {
             Log.w("Kissasian", "No video URL found in Vidmoly HTML using regex.")
