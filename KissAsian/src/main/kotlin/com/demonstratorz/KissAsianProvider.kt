@@ -15,7 +15,7 @@ import java.util.regex.Pattern
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.coroutineScope
 
-// Import necessary utilities from the working example
+// Import necessary utilities
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.INFER_TYPE
@@ -184,7 +184,7 @@ class KissasianProvider : MainAPI() {
             Log.i("Kissasian", "Fetched Vidmoly HTML content.")
 
             // *** Apply the regex to find the video link from Vidmoly HTML ***
-            // Regex based on the provided example URL structure
+            // Regex based on the provided example URL structure and HTML content
             val videoUrlRegex = Regex("(https?://[^/]+/hls/,(?:[^,]+?,){1,2}[^,]+?,?\\.urlset/master\\.m3u8)")
             val matchResult = videoUrlRegex.find(vidmolyHtml)
 
@@ -196,14 +196,13 @@ class KissasianProvider : MainAPI() {
                 // *** Use newExtractorLink based on the LiveTV example ***
                 callback(
                     newExtractorLink(
-                        "Vidmoly", // qualityName (from original constructor)
-                        "Vidmoly", // extractorName (from original constructor)
+                        "Vidmoly", // qualityName
+                        "Vidmoly", // extractorName
                         videoUrl,  // url
                         INFER_TYPE // type - infer from URL extension
                     ) {
-                        this.quality = Qualities.Unknown.value // quality value (using Qualities enum as in LiveTV)
-                        this.referer = currentIframeUrl // referer
-                        // No explicit headers in original Kissasian code, omit headers builder property
+                        this.quality = Qualities.Unknown.value // quality value
+                        this.referer = currentIframeUrl // referer (important for playback)
                     }
                 )
                 return true
@@ -236,8 +235,6 @@ class KissasianProvider : MainAPI() {
                  // If fallback urls were found and processed, return true, otherwise false
                  return fallbackVideoUrls.isNotEmpty()
 
-                // The original JavaScript execution logic is removed as planned.
-
             }
 
 
@@ -248,7 +245,7 @@ class KissasianProvider : MainAPI() {
     }
 
     fun extractUrlFromJavascript(scriptCode: String): String? {
-        // This function might not be needed anymore if regex extraction is sufficient for Vidmoly
+        // This function might not be needed anymore
         val regex = "window\\.location(?:\\s*)=(?:\\s*)\\{(?:\\s*)['\"]href['\"](?:\\s*):(?:\\s*)['\"](.*?)(?:'|\")[\\s\\r\\n]*\\};" // Non-greedy matching
         val pattern = Pattern.compile(regex, Pattern.MULTILINE)
         val matcher = pattern.matcher(scriptCode)
@@ -263,7 +260,6 @@ class KissasianProvider : MainAPI() {
         }
     }
 
-    // Added new extension function for String based on error fix
     private fun String.cleanUpDescriptionString(): String {
         return this.replace("Dear user watch.*".toRegex(), "").trim()
     }
@@ -281,7 +277,7 @@ fun main() {
     runBlocking {
         // Example usage
         kissasianProvider.search("petri")
-        // You can add a test for loadLinks here with a known episode URL that uses the vidmoly embed
+        // Add test for loadLinks with a vidmoly iframe URL
         // kissasianProvider.loadLinks("some_episode_url_with_vidmoly_iframe", false, { subtitle -> }, { link -> })
     }
 }
