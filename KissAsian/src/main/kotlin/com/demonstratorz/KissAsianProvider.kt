@@ -144,7 +144,7 @@ class KissAsianProvider : MainAPI() {
                             val videoUrl = source.attr("src")
                             if (videoUrl.isNotEmpty()) {
                                 callback.invoke(
-                                    ExtractorLink(
+                                    newExtractorLink(
                                         source = this.name,
                                         name = "Direct",
                                         url = videoUrl,
