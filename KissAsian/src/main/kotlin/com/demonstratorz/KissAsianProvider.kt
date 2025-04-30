@@ -3,7 +3,7 @@ package com.demonstratorz
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.M3u8Helper // Keep if needed elsewhere, removed direct usage in loadLinks
+import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.loadExtractor
 import kotlinx.coroutines.runBlocking
 import org.jsoup.nodes.Element
@@ -12,8 +12,13 @@ import org.mozilla.javascript.ScriptableObject
 import org.mozilla.javascript.BaseFunction
 import org.mozilla.javascript.Scriptable
 import java.util.regex.Pattern
-import kotlinx.coroutines.launch // Import for coroutineScope and launch
-import kotlinx.coroutines.coroutineScope // Import for coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+
+// Import necessary utilities from the working example
+import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.cloudstream3.utils.INFER_TYPE
 
 
 class KissasianProvider : MainAPI() {
@@ -24,7 +29,7 @@ class KissasianProvider : MainAPI() {
     override val supportedTypes = setOf(
         TvType.AsianDrama,
         TvType.Movie,
-        // TvType.KShow // Commented out in original code
+        // TvType.KShow
     )
 
     override val mainPage = mainPageOf(
@@ -43,25 +48,24 @@ class KissasianProvider : MainAPI() {
         return try {
             val document = app.get(url).document
             Log.i("Kissasian", "Main page document loaded successfully.")
-            // Log.i("Kissasian", "Document: ${document.text()}") // Keep commented out for cleaner logs unless debugging
+            // Log.i("Kissasian", "Document: ${document.text()}")
 
             val dramas = document.select("#top > div > div.content > div.content-left > div > div.block.tab-container > div > ul > li").mapNotNull { dramaElement ->
                 try {
                     val title = dramaElement.select("a").attr("title").trim()
                     val link = dramaElement.select("a.img").attr("href")
                     val posterUrl = dramaElement.select("img").attr("data-original")
-                    val isMovie = url.contains("movie") // This might not be a reliable indicator for TvType
+                    val isMovie = url.contains("movie")
                     newAnimeSearchResponse(title, fixUrl(link), if (isMovie) TvType.Movie else TvType.TvSeries) {
                         this.posterUrl = fixUrl(posterUrl)
                     }
                 } catch (e: Exception) {
-                    // Corrected Log.e call
                     Log.e("Kissasian", "Error processing drama element: ${dramaElement.text()} - ${e.message}")
                     null
                 }
             }
 
-            val hasNextPage = false // Check if there's a next page button/link if pagination exists
+            val hasNextPage = false
             Log.i("Kissasian", "Main page scraping complete. Found ${dramas.size} dramas.")
             newHomePageResponse(
                 list = dramas,
@@ -84,20 +88,19 @@ class KissasianProvider : MainAPI() {
             val searchResults: List<SearchResponse> = document.select("#top > div > div.content > div.content-left > div > div.block.tab-container > div > ul > li").mapNotNull { searchElement ->
                 try {
                     val title = searchElement.select("a").attr("title")
-                    // Log.i("Kissasian", "Found search result: Title=$title") // Keep commented out for cleaner logs
+                    // Log.i("Kissasian", "Found search result: Title=$title")
                     val link = searchElement.select("a").attr("href")
-                    // Log.i("Kissasian", "Found search result: Link=$link") // Keep commented out for cleaner logs
+                    // Log.i("Kissasian", "Found search result: Link=$link")
                     val posterUrl = searchElement.select("img").attr("src")
-                    // Log.i("Kissasian", "Found search result: Poster=$posterUrl") // Keep commented out for cleaner logs
-                    val isMovie = searchUrl.contains("movie") // This might not be a reliable indicator for TvType
-                    // Log.i("Kissasian", "Found search result: IsMovie=$isMovie") // Keep commented out for cleaner logs
+                    // Log.i("Kissasian", "Found search result: Poster=$posterUrl")
+                    val isMovie = searchUrl.contains("movie")
+                    // Log.i("Kissasian", "Found search result: IsMovie=$isMovie")
 
-                    // Log.i("Kissasian", "Found search result: Title=$title, Link=$link, Poster=$posterUrl") // Keep commented out for cleaner logs
+                    // Log.i("Kissasian", "Found search result: Title=$title, Link=$link, Poster=$posterUrl")
                     newAnimeSearchResponse(title, fixUrl(link), if (isMovie) TvType.Movie else TvType.TvSeries) {
                         this.posterUrl = fixUrl(posterUrl)
                     }
                 } catch (e: Exception) {
-                    // Corrected Log.e call
                     Log.e("Kissasian", "Error processing search element: ${searchElement.text()} - ${e.message}")
                     null
                 }
@@ -118,7 +121,6 @@ class KissasianProvider : MainAPI() {
 
             val title = document.select("#top > div.container > div.content > div.content-left > div.block > div.details > div.img > img").attr("alt").trim()
             val posterUrl = document.select("#top > div.container > div.content > div.content-left > div.block > div.details > div.img > img").attr("src")
-            // Corrected usage of cleanUpDescriptionString
             val description = document.select(".block-watch p").text().cleanUpDescriptionString()
 
 
@@ -140,7 +142,7 @@ class KissasianProvider : MainAPI() {
                 }
             }
 
-            val isMovie = false // Determine if it's a movie more reliably if possible
+            val isMovie = false
             newTvSeriesLoadResponse(
                 title,
                 url,
@@ -177,7 +179,6 @@ class KissasianProvider : MainAPI() {
             Log.i("Kissasian", "Initial Iframe URL: $currentIframeUrl")
 
             // Fetch the content of the vidmoly.to embed page
-            // Removed the domain replacement as the user specified the vidmoly.to URL comes from the iframe
             val vidmolyDocument = app.get(currentIframeUrl, referer = "$mainUrl/").document
             val vidmolyHtml = vidmolyDocument.text() // Get the full HTML content as a string
             Log.i("Kissasian", "Fetched Vidmoly HTML content.")
@@ -192,13 +193,17 @@ class KissasianProvider : MainAPI() {
             if (videoUrl != null) {
                 Log.i("Kissasian", "Extracted video URL: $videoUrl")
                 // Assuming the extracted URL is a direct playable link (like M3u8)
-                // *** Use newExtractorLink instead of the deprecated constructor ***
+                // *** Use newExtractorLink based on the LiveTV example ***
                 callback(
-                    newExtractorLink(videoUrl, "Vidmoly") { // Pass URL and Quality Label
-                        name = "Vidmoly" // Extractor Name
-                        quality = 0 // Quality Value (using 0 as before)
-                        isM3u8 = true
-                        referer = currentIframeUrl // Set referer to the vidmoly page URL
+                    newExtractorLink(
+                        "Vidmoly", // qualityName (from original constructor)
+                        "Vidmoly", // extractorName (from original constructor)
+                        videoUrl,  // url
+                        INFER_TYPE // type - infer from URL extension
+                    ) {
+                        this.quality = Qualities.Unknown.value // quality value (using Qualities enum as in LiveTV)
+                        this.referer = currentIframeUrl // referer
+                        // No explicit headers in original Kissasian code, omit headers builder property
                     }
                 )
                 return true
@@ -206,8 +211,8 @@ class KissasianProvider : MainAPI() {
                 Log.w("Kissasian", "No video URL found in Vidmoly HTML using regex.")
 
                 // *** Fallback Method (Corrected for Suspension functions) ***
-                val document = app.get(currentIframeUrl).document // Re-fetch if needed, or use vidmolyDocument
-                val body = document.body() // Use the body of the vidmoly page
+                // Use the already fetched vidmolyDocument
+                val body = vidmolyDocument.body()
 
                 // Collect potential video URLs from data-video attributes from the vidmoly page
                 val fallbackVideoUrls = body.select("li")
@@ -216,7 +221,6 @@ class KissasianProvider : MainAPI() {
                     }
 
                 // Process each fallback URL using loadExtractor within a coroutine context
-                // Using forEach inside coroutineScope to handle suspend calls
                 coroutineScope {
                     fallbackVideoUrls.forEach { videoUrl ->
                         launch { // Launch a new coroutine for each URL
@@ -224,7 +228,6 @@ class KissasianProvider : MainAPI() {
                                 // Use loadExtractor directly with the fallback URL
                                 loadExtractor(videoUrl, subtitleCallback, callback)
                             } catch (e: Exception) {
-                                // Corrected Log.e call
                                 Log.e("Kissasian", "Error loading links from fallback URL $videoUrl: ${e.message}")
                             }
                         }
@@ -233,11 +236,7 @@ class KissasianProvider : MainAPI() {
                  // If fallback urls were found and processed, return true, otherwise false
                  return fallbackVideoUrls.isNotEmpty()
 
-                // Note: The original JavaScript execution logic has been removed
-                // in favor of the regex extraction and the data-video fallback
-                // based on your latest information. If the regex fails and
-                // data-video fallback is not sufficient, you might need to re-introduce
-                // or modify the JavaScript execution based on how the vidmoly page works.
+                // The original JavaScript execution logic is removed as planned.
 
             }
 
@@ -250,7 +249,6 @@ class KissasianProvider : MainAPI() {
 
     fun extractUrlFromJavascript(scriptCode: String): String? {
         // This function might not be needed anymore if regex extraction is sufficient for Vidmoly
-        // but keeping it in case the JavaScript execution becomes relevant again for other scenarios.
         val regex = "window\\.location(?:\\s*)=(?:\\s*)\\{(?:\\s*)['\"]href['\"](?:\\s*):(?:\\s*)['\"](.*?)(?:'|\")[\\s\\r\\n]*\\};" // Non-greedy matching
         val pattern = Pattern.compile(regex, Pattern.MULTILINE)
         val matcher = pattern.matcher(scriptCode)
@@ -264,8 +262,6 @@ class KissasianProvider : MainAPI() {
             null
         }
     }
-
-    // Removed the old cleanUpDescription extension function for Element
 
     // Added new extension function for String based on error fix
     private fun String.cleanUpDescriptionString(): String {
@@ -283,8 +279,9 @@ class KissasianProvider : MainAPI() {
 fun main() {
     val kissasianProvider = KissasianProvider()
     runBlocking {
-        // Example usage, you might need to provide a real episode URL for loadLinks testing
+        // Example usage
         kissasianProvider.search("petri")
-        // kissasianProvider.loadLinks("some_episode_url", false, { subtitle -> }, { link -> })
+        // You can add a test for loadLinks here with a known episode URL that uses the vidmoly embed
+        // kissasianProvider.loadLinks("some_episode_url_with_vidmoly_iframe", false, { subtitle -> }, { link -> })
     }
 }
