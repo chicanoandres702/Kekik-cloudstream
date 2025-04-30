@@ -224,11 +224,11 @@ private suspend fun handleVidmolySource(
                     newExtractorLink(
                         source = name,
                         name = name,
-                        url = videoUrl,
-                        referer = url,
-                        quality = 720,
-                        isM3u8 = false
-                    )
+                        url = videoUrl
+                    ) {
+                        this.quality = 720
+                        this.referer = url
+                    }
                 )
             }
 
