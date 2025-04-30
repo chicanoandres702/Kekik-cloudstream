@@ -52,9 +52,8 @@ class KissasianProvider : MainAPI() {
                     val posterUrl = dramaElement.select("img").attr("data-original")
                     val isMovie = url.contains("movie")
 
-                    newAnimeSearchResponse(title, fixUrl(link), if (isMovie) TvType.Movie else TvType.AsianDrama) {
+                    newSearchResponse(title, fixUrl(link), if (isMovie) TvType.Movie else TvType.AsianDrama) {
                         this.posterUrl = fixUrlNull(posterUrl)
-                        addDubStatus(isDub = false, subList = true)
                     }
                 } catch (e: Exception) {
                     Log.e("Kissasian", "Error processing drama element: ${dramaElement.text()} - ${e.message}")
@@ -95,13 +94,12 @@ class KissasianProvider : MainAPI() {
                     Log.i("Kissasian", "Found: Title=$title, URL=$href, Type=$type")
                     
                     if (title.isNotEmpty() && href.isNotEmpty()) {
-                        newAnimeSearchResponse(
+                        newSearchResponse(
                             title,
                             fixUrl(href),
                             type
                         ) {
                             this.posterUrl = fixUrlNull(posterUrl)
-                            addDubStatus(isDub = false, subList = true)
                         }
                     } else null
                 } catch (e: Exception) {
@@ -185,7 +183,7 @@ class KissasianProvider : MainAPI() {
                         handleVidmolySource(fixedUrl, subtitleCallback, callback)
                     }
                     else -> {
-                        loadExtractor(fixedUrl, subtitleCallback, callback)
+                        loadExtractor(fixedUrl, data, subtitleCallback, callback)
                     }
                 }
                 true
@@ -223,10 +221,11 @@ class KissasianProvider : MainAPI() {
                 } else {
                     callback.invoke(
                         ExtractorLink(
+                            source = "Vidmoly",
                             name = "Vidmoly",
                             url = videoUrl,
                             referer = url,
-                            quality = Qualities.Unknown.value,
+                            quality = 720,
                             isM3u8 = false
                         )
                     )
