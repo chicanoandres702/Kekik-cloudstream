@@ -1,6 +1,3 @@
-Here's the complete updated script:
-
-```kotlin
 package com.demonstratorz
 
 import com.lagradost.api.Log
