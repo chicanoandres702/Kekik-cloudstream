@@ -214,18 +214,19 @@ private suspend fun handleVidmolySource(
         if (!videoUrl.isNullOrEmpty()) {
             if (videoUrl.contains(".m3u8")) {
                 M3u8Helper.generateM3u8(
-                    source = this.name,
+                    source = name,
                     streamUrl = videoUrl,
                     referer = url
                 ).forEach(callback)
             } else {
                 callback.invoke(
-                    newExtractorLink(
-                        source = this.name,
-                        name = this.name,
+                    ExtractorLink(
+                        source = name,
+                        name = name,
                         url = videoUrl,
                         referer = url,
-                        quality = 720
+                        quality = 720,
+                        isM3u8 = false
                     )
                 )
             }
