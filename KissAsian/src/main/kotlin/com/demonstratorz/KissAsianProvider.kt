@@ -52,7 +52,7 @@ class KissasianProvider : MainAPI() {
                     val posterUrl = dramaElement.select("img").attr("data-original")
                     val isMovie = url.contains("movie")
 
-                    newSearchResponse(title, fixUrl(link), if (isMovie) TvType.Movie else TvType.AsianDrama) {
+                    newAnimeSearchResponse(title, fixUrl(link), if (isMovie) TvType.Movie else TvType.AsianDrama) {
                         this.posterUrl = fixUrlNull(posterUrl)
                     }
                 } catch (e: Exception) {
@@ -94,7 +94,7 @@ class KissasianProvider : MainAPI() {
                     Log.i("Kissasian", "Found: Title=$title, URL=$href, Type=$type")
                     
                     if (title.isNotEmpty() && href.isNotEmpty()) {
-                        newSearchResponse(
+                        newAnimeSearchResponse(
                             title,
                             fixUrl(href),
                             type
@@ -221,8 +221,8 @@ class KissasianProvider : MainAPI() {
                 } else {
                     callback.invoke(
                         ExtractorLink(
+                            name = this.name,
                             source = "Vidmoly",
-                            name = "Vidmoly",
                             url = videoUrl,
                             referer = url,
                             quality = 720,
