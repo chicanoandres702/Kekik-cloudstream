@@ -144,12 +144,13 @@ class KissAsianProvider : MainAPI() {
                             val videoUrl = source.attr("src")
                             if (videoUrl.isNotEmpty()) {
                                 callback.invoke(
-                                    newExtractorLink(
+                                    ExtractorLink(
                                         source = this.name,
                                         name = "Direct",
                                         url = videoUrl,
                                         referer = iframeUrl,
-                                        quality = Qualities.Unknown.value
+                                        quality = Qualities.Unknown.value,
+                                        isM3u8 = videoUrl.contains(".m3u8")
                                     )
                                 )
                                 sourceFound = true
@@ -181,12 +182,5 @@ class KissAsianProvider : MainAPI() {
 
     private fun String.cleanDescription(): String {
         return this.replace("""Dear user watch.*""".toRegex(), "").trim()
-    }
-}
-
-class KissAsianProviderPlugin : Plugin {
-    override fun load(context: Context) {
-        // Register your provider
-        registerMainAPI(KissAsianProvider())
     }
 }
