@@ -3,6 +3,7 @@ package com.demonstratorz
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.network.CloudflareKiller
@@ -227,16 +228,18 @@ class KissasianProvider : MainAPI() {
                     ).forEach(callback)
                 } else {
                     Log.i("Kissasian", "Processing direct video link")
-                    callback.invoke(
-                        ExtractorLink(
-                            source = name,
-                            name = name,
-                            url = videoUrl,
-                            referer = url,
-                            quality = 720,
-                            isM3u8 = false
-                        )
-                    )
+                    callback.run {
+                        invoke(
+                                        newExtractorLink(
+                                            source = name,
+                                            name = name,
+                                            url = videoUrl
+                                        )
+                                        {
+                                            quality = 720
+                                        }
+                                    )
+                    }
                 }
 
                 // Extract subtitles
