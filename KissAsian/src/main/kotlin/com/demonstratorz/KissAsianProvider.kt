@@ -3,14 +3,12 @@ package com.demonstratorz
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.network.CloudflareKiller
 import kotlinx.coroutines.runBlocking
 import org.jsoup.nodes.Element
 import com.lagradost.nicehttp.NiceResponse
-import android.widget.Toast
 
 class KissasianProvider : MainAPI() {
     override var mainUrl = "https://kissasian.com.lv"
@@ -47,13 +45,12 @@ class KissasianProvider : MainAPI() {
         Log.i("Kissasian", "Getting main page: $url, page: $page, request: $request")
         return try {
             val document = cfKiller(url).document
-            val dramas = document.select("div.content div.block div.tab-content ul.list-episode-item li").mapNotNull { dramaElement ->
+            val dramas = document.select("#top > div > div.content > div.content-left > div > div.block.tab-container > div > ul > li").mapNotNull { dramaElement ->
                 try {
                     val title = dramaElement.select("a").attr("title").trim()
                     val link = dramaElement.select("a.img").attr("href")
                     val posterUrl = dramaElement.select("img").attr("data-original")
                     val isMovie = url.contains("movie")
-
                     newAnimeSearchResponse(title, fixUrl(link), if (isMovie) TvType.Movie else TvType.AsianDrama) {
                         this.posterUrl = fixUrlNull(posterUrl)
                     }
@@ -115,175 +112,158 @@ class KissasianProvider : MainAPI() {
         }
     }
 
-override suspend fun load(url: String): LoadResponse? {
-    Log.i("Kissasian", "Loading details page: $url")
-    return try {
-        val document = cfKiller(url).document
+    override suspend fun load(url: String): LoadResponse? {
+        Log.i("Kissasian", "Loading details page: $url")
+        return try {
+            val document = cfKiller(url).document
 
-        val title = document.select("#top > div.container > div.content > div.content-left > div.block > div.details > div.img > img").attr("alt").trim()
-        val posterUrl = document.select("#top > div.container > div.content > div.content-left > div.block > div.details > div.img > img").attr("src")
-        val description = document.select(".block-watch p").text()
+            val title = document.select("#top > div.container > div.content > div.content-left > div.block > div.details > div.img > img").attr("alt").trim()
+            val posterUrl = document.select("#top > div.container > div.content > div.content-left > div.block > div.details > div.img > img").attr("src")
+            val description = document.select(".block-watch p").text()
 
-        val episodes = document.select(".all-episode li").mapNotNull { episodeElement ->
-            try {
-                val episodeUrl = episodeElement.select("a").attr("href")
-                val episodeNum = episodeElement.select("h3.title").text().extractEpisodeNumber()
-                Log.i("Kissasian", "Found episode: URL=$episodeUrl, Number=$episodeNum")
+            Log.i("Kissasian", "Title: $title")
+            Log.i("Kissasian", "Poster: $posterUrl")
+            Log.i("Kissasian", "Description: $description")
 
-                Episode(
-                    data = fixUrl(episodeUrl),
-                    episode = episodeNum
-                )
-            } catch (e: Exception) {
-                Log.e("Kissasian", "Error processing episode element: ${episodeElement.text()} - ${e.message}")
-                null
+            val episodes = document.select(".all-episode li").mapNotNull { episodeElement ->
+                try {
+                    val episodeUrl = episodeElement.select("a").attr("href")
+                    val episodeNum = episodeElement.select("h3.title").text().extractEpisodeNumber()
+                    Log.i("Kissasian", "Found episode: URL=$episodeUrl, Number=$episodeNum")
+
+                    Episode(
+                        data = fixUrl(episodeUrl),
+                        episode = episodeNum
+                    )
+                } catch (e: Exception) {
+                    Log.e("Kissasian", "Error processing episode element: ${episodeElement.text()} - ${e.message}")
+                    null
+                }
             }
+
+            Log.i("Kissasian", "Total episodes found: ${episodes.size}")
+
+            val isMovie = url.contains("/movie/") || title.contains("Movie", true)
+            if (isMovie) {
+                newMovieLoadResponse(title, url, TvType.Movie, url) {
+                    this.posterUrl = fixUrlNull(posterUrl)
+                    this.plot = description
+                }
+            } else {
+                newTvSeriesLoadResponse(title, url, TvType.AsianDrama, episodes) {
+                    this.posterUrl = fixUrlNull(posterUrl)
+                    this.plot = description
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("Kissasian", "Error loading details page: $url - ${e.message}")
+            null
         }
-
-        val isMovie = url.contains("/movie/") || title.contains("Movie", true)
-        if (isMovie) {
-            newMovieLoadResponse(title, url, TvType.Movie, url) {
-                this.posterUrl = fixUrlNull(posterUrl)
-                this.plot = description
-            }
-        } else {
-            newTvSeriesLoadResponse(title, url, TvType.AsianDrama, episodes) {
-                this.posterUrl = fixUrlNull(posterUrl)
-                this.plot = description
-            }
-        }
-    } catch (e: Exception) {
-        Log.e("Kissasian", "Error loading details page: $url - ${e.message}")
-        null
     }
-}
 
     override suspend fun loadLinks(
-    data: String,
-    isCasting: Boolean,
-    subtitleCallback: (SubtitleFile) -> Unit,
-    callback: (ExtractorLink) -> Unit
-): Boolean {
-    Log.i("Kissasian", "Loading links for: $data")
-    return try {
-        val document = cfKiller(data).document
-        val iframeUrl = document.select("#block-tab-video iframe").attr("src")
-        Log.i("Kissasian", "Found iframe URL: $iframeUrl")
-        
-        app.activity?.runOnUiThread {
-            Toast.makeText(app.context, "Found iframe: $iframeUrl", Toast.LENGTH_LONG).show()
-        }
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        Log.i("Kissasian", "Loading links for: $data")
+        return try {
+            val document = cfKiller(data).document
+            val iframeUrl = document.select("#block-tab-video iframe").attr("src")
+            Log.i("Kissasian", "Found iframe URL: $iframeUrl")
 
-        if (iframeUrl.isNotEmpty()) {
-            val fixedUrl = if (iframeUrl.startsWith("//")) "https:$iframeUrl" else iframeUrl
-            
-            when {
-                fixedUrl.contains("vidmoly.to") -> {
-                    app.activity?.runOnUiThread {
-                        Toast.makeText(app.context, "Processing Vidmoly link", Toast.LENGTH_LONG).show()
+            if (iframeUrl.isNotEmpty()) {
+                val fixedUrl = if (iframeUrl.startsWith("//")) "https:$iframeUrl" else iframeUrl
+                
+                when {
+                    fixedUrl.contains("vidmoly.to") -> {
+                        Log.i("Kissasian", "Processing Vidmoly link: $fixedUrl")
+                        handleVidmolySource(fixedUrl, subtitleCallback, callback)
                     }
-                    handleVidmolySource(fixedUrl, subtitleCallback, callback)
-                }
-                else -> {
-                    app.activity?.runOnUiThread {
-                        Toast.makeText(app.context, "Using default extractor for: $fixedUrl", Toast.LENGTH_LONG).show()
+                    else -> {
+                        Log.i("Kissasian", "Using default extractor for: $fixedUrl")
+                        loadExtractor(fixedUrl, data, subtitleCallback, callback)
                     }
-                    loadExtractor(fixedUrl, data, subtitleCallback, callback)
                 }
+                true
+            } else {
+                Log.w("Kissasian", "No iframe URL found")
+                false
             }
-            true
-        } else {
-            app.activity?.runOnUiThread {
-                Toast.makeText(app.context, "No iframe URL found", Toast.LENGTH_LONG).show()
-            }
-            Log.w("Kissasian", "No iframe URL found")
+        } catch (e: Exception) {
+            Log.e("Kissasian", "Error loading links: ${e.message}")
             false
         }
-    } catch (e: Exception) {
-        app.activity?.runOnUiThread {
-            Toast.makeText(app.context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-        Log.e("Kissasian", "Error loading links: ${e.message}")
-        false
     }
-}
 
-private suspend fun handleVidmolySource(
-    url: String,
-    subtitleCallback: (SubtitleFile) -> Unit,
-    callback: (ExtractorLink) -> Unit
-): Boolean {
-    return try {
-        val response = cfKiller(url)
-        val document = response.document
+    private suspend fun handleVidmolySource(
+        url: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        return try {
+            val response = cfKiller(url)
+            val document = response.document
 
-        // Extract video URL from JWPlayer setup
-        val videoSourcesPattern = """sources:\s*$$\{file:"([^"]+)"\}$$""".toRegex()
-        val match = videoSourcesPattern.find(document.html())
-        val videoUrl = match?.groupValues?.get(1)
+            Log.i("Kissasian", "Processing Vidmoly page HTML")
+            val html = document.html()
+            Log.i("Kissasian", "Page HTML: $html")
 
-        app.activity?.runOnUiThread {
-            Toast.makeText(app.context, "Found video URL: $videoUrl", Toast.LENGTH_LONG).show()
-        }
+            // Extract video URL from JWPlayer setup
+            val videoSourcesPattern = """sources:\s*$$\{file:"([^"]+)"\}$$""".toRegex()
+            val match = videoSourcesPattern.find(document.html())
+            val videoUrl = match?.groupValues?.get(1)
 
-        if (!videoUrl.isNullOrEmpty()) {
-            if (videoUrl.contains(".m3u8")) {
-                app.activity?.runOnUiThread {
-                    Toast.makeText(app.context, "Processing M3U8 stream", Toast.LENGTH_LONG).show()
-                }
-                M3u8Helper.generateM3u8(
-                    source = name,
-                    streamUrl = videoUrl,
-                    referer = url
-                ).forEach(callback)
-            } else {
-                app.activity?.runOnUiThread {
-                    Toast.makeText(app.context, "Processing direct video link", Toast.LENGTH_LONG).show()
-                }
-                callback.invoke(
-                    newExtractorLink(
+            Log.i("Kissasian", "Found video URL: $videoUrl")
+
+            if (!videoUrl.isNullOrEmpty()) {
+                if (videoUrl.contains(".m3u8")) {
+                    Log.i("Kissasian", "Processing M3U8 stream")
+                    M3u8Helper.generateM3u8(
                         source = name,
-                        name = name,
-                        url = videoUrl
-                    ) {
-                        this.quality = 720
-                        this.referer = url
-                    }
-                )
-            }
-
-            // Extract subtitles
-            document.select("tracks").forEach { track ->
-                val subtitleUrl = track.attr("file")
-                val label = track.attr("label")
-                if (subtitleUrl.isNotEmpty() && subtitleUrl.endsWith(".vtt")) {
-                    app.activity?.runOnUiThread {
-                        Toast.makeText(app.context, "Found subtitle: $label", Toast.LENGTH_LONG).show()
-                    }
-                    subtitleCallback.invoke(
-                        SubtitleFile(
-                            lang = label,
-                            url = subtitleUrl
+                        streamUrl = videoUrl,
+                        referer = url
+                    ).forEach(callback)
+                } else {
+                    Log.i("Kissasian", "Processing direct video link")
+                    callback.invoke(
+                        ExtractorLink(
+                            source = name,
+                            name = name,
+                            url = videoUrl,
+                            referer = url,
+                            quality = 720,
+                            isM3u8 = false
                         )
                     )
                 }
+
+                // Extract subtitles
+                document.select("tracks").forEach { track ->
+                    val subtitleUrl = track.attr("file")
+                    val label = track.attr("label")
+                    if (subtitleUrl.isNotEmpty() && subtitleUrl.endsWith(".vtt")) {
+                        Log.i("Kissasian", "Found subtitle: $label at $subtitleUrl")
+                        subtitleCallback.invoke(
+                            SubtitleFile(
+                                lang = label,
+                                url = subtitleUrl
+                            )
+                        )
+                    }
+                }
+                true
+            } else {
+                Log.w("Vidmoly", "No video URL found")
+                false
             }
-            true
-        } else {
-            app.activity?.runOnUiThread {
-                Toast.makeText(app.context, "No video URL found in player setup", Toast.LENGTH_LONG).show()
-            }
-            Log.w("Vidmoly", "No video URL found")
+        } catch (e: Exception) {
+            Log.e("Vidmoly", "Error handling Vidmoly source: ${e.message}")
             false
         }
-    } catch (e: Exception) {
-        app.activity?.runOnUiThread {
-            Toast.makeText(app.context, "Vidmoly error: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-        Log.e("Vidmoly", "Error handling Vidmoly source: ${e.message}")
-        false
     }
-}
+
     private fun fixUrlNull(url: String?): String? {
         if (url == null) return null
         return if (url.startsWith("//")) {
