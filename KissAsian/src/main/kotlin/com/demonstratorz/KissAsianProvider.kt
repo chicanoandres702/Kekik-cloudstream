@@ -11,9 +11,8 @@ import kotlinx.coroutines.runBlocking
 import org.jsoup.nodes.Element
 import com.lagradost.nicehttp.NiceResponse
 
-
 class KissasianProvider : MainAPI() {
-    override var mainUrl = "https://kissasian.com.lv"
+    override var mainUrl = "https://w1.kissasian.email/"
     override var name = "Kissasian"
     override val hasMainPage = true
     override val hasDownloadSupport = true
@@ -209,12 +208,12 @@ class KissasianProvider : MainAPI() {
             val document = response.document
 
             Log.i("Kissasian", "Processing Vidmoly page HTML")
-            val html = document.html() // Get HTML once
+            val html = document.html()
+            Log.i("Kissasian", "Page HTML: $html")
 
             // Extract video URL from JWPlayer setup
-            // Corrected regex to look for single double quotes around the URL
-            val videoSourcesPattern = """"(https.*m3u8.+?)"""".toRegex()
-            val match = videoSourcesPattern.find(html) // Use the 'html' variable
+            val videoSourcesPattern = "\"\"(https.*m3u8.+?)\"\"".toRegex()
+            val match = videoSourcesPattern.find(document.html())
             val videoUrl = match?.groupValues?.get(1)
 
             Log.i("Kissasian", "Found video URL: $videoUrl")
@@ -229,20 +228,22 @@ class KissasianProvider : MainAPI() {
                     ).forEach(callback)
                 } else {
                     Log.i("Kissasian", "Processing direct video link")
-                    callback.invoke(
-                        newExtractorLink(
-                            source = name,
-                            name = name,
-                            url = videoUrl
-                        ) {
-                            quality = 720 // Assuming 720p for direct links if quality isn't specified
-                        }
-                    )
+                    callback.run {
+                        invoke(
+                                        newExtractorLink(
+                                            source = name,
+                                            name = name,
+                                            url = videoUrl
+                                        )
+                                        {
+                                            quality = 720
+                                        }
+                                    )
+                    }
                 }
 
                 // Extract subtitles
-                // Assuming 'tracks' is the correct tag for subtitles based on the HTML provided
-                document.select("track").forEach { track -> // Corrected from 'tracks' to 'track' based on common HTML
+                document.select("tracks").forEach { track ->
                     val subtitleUrl = track.attr("file")
                     val label = track.attr("label")
                     if (subtitleUrl.isNotEmpty() && subtitleUrl.endsWith(".vtt")) {
@@ -257,8 +258,7 @@ class KissasianProvider : MainAPI() {
                 }
                 true
             } else {
-                Log.w("Vidmoly", "No video URL found with the current pattern.")
-                // Consider adding alternative extraction methods here if needed
+                Log.w("Vidmoly", "No video URL found")
                 false
             }
         } catch (e: Exception) {
@@ -266,7 +266,6 @@ class KissasianProvider : MainAPI() {
             false
         }
     }
-
 
     private fun fixUrlNull(url: String?): String? {
         if (url == null) return null
