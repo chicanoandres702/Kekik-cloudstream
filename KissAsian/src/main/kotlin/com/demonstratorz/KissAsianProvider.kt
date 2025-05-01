@@ -11,6 +11,7 @@ import kotlinx.coroutines.runBlocking
 import org.jsoup.nodes.Element
 import com.lagradost.nicehttp.NiceResponse
 
+
 class KissasianProvider : MainAPI() {
     override var mainUrl = "https://kissasian.com.lv"
     override var name = "Kissasian"
