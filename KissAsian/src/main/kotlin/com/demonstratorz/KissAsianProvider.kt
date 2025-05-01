@@ -284,63 +284,6 @@ private suspend fun handleVidmolySource(
         false
     }
 }
-private suspend fun handleVidmolySource(
-    url: String,
-    subtitleCallback: (SubtitleFile) -> Unit,
-    callback: (ExtractorLink) -> Unit
-): Boolean {
-    return try {
-        val response = cfKiller(url)
-        val document = response.document
-
-        // Extract video URL from JWPlayer setup
-        val videoSourcesPattern = """sources:\s*$$\{file:"([^"]+)"\}$$""".toRegex()
-        val match = videoSourcesPattern.find(document.html())
-        val videoUrl = match?.groupValues?.get(1)
-
-        if (!videoUrl.isNullOrEmpty()) {
-            if (videoUrl.contains(".m3u8")) {
-                M3u8Helper.generateM3u8(
-                    source = name,
-                    streamUrl = videoUrl,
-                    referer = url
-                ).forEach(callback)
-            } else {
-                callback.invoke(
-                    newExtractorLink(
-                        source = name,
-                        name = name,
-                        url = videoUrl
-                    ) {
-                        this.quality = 720
-                        this.referer = url
-                    }
-                )
-            }
-
-            // Extract subtitles
-            document.select("tracks").forEach { track ->
-                val subtitleUrl = track.attr("file")
-                val label = track.attr("label")
-                if (subtitleUrl.isNotEmpty() && subtitleUrl.endsWith(".vtt")) {
-                    subtitleCallback.invoke(
-                        SubtitleFile(
-                            lang = label,
-                            url = subtitleUrl
-                        )
-                    )
-                }
-            }
-            true
-        } else {
-            Log.w("Vidmoly", "No video URL found")
-            false
-        }
-    } catch (e: Exception) {
-        Log.e("Vidmoly", "Error handling Vidmoly source: ${e.message}")
-        false
-    }
-}
     private fun fixUrlNull(url: String?): String? {
         if (url == null) return null
         return if (url.startsWith("//")) {
