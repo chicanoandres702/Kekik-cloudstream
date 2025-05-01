@@ -1,0 +1,17 @@
+[
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=kisskh.co&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/chicanoandres702/Kekik-cloudstream",
+        "fileSize": 16150,
+        "status": 1,
+        "authors": [
+            "Andrew (Demonstratorz)"
+        ],
+        "version": 12,
+        "internalName": "KissAsian",
+        "description": "Kissasian Provider",
+        "url": "https://raw.githubusercontent.com/chicanoandres702/Kekik-cloudstream/builds/KissAsian.cs3",
+        "name": "KissAsian"
+    }
+]

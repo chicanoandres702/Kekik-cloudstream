@@ -1,0 +1,8 @@
+{
+    "name": "Andrew's Repo",
+    "description": "Andrews Repo",
+    "manifestVersion": 1,
+    "pluginLists": [
+      "https://raw.githubusercontent.com/chicanoandres702/Kekik-cloudstream/refs/heads/builds/plugins.json"
+    ]
+}
