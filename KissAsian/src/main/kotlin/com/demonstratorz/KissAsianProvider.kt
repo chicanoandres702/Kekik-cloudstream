@@ -212,7 +212,7 @@ class KissasianProvider : MainAPI() {
             Log.i("Kissasian", "Page HTML: $html")
 
             // Extract video URL from JWPlayer setup
-            val videoSourcesPattern = """sources:\s*$$\{file:"([^"]+)"\}$$""".toRegex()
+            val videoSourcesPattern = "\"\"(https.*m3u8.+?)\"\"".toRegex()
             val match = videoSourcesPattern.find(document.html())
             val videoUrl = match?.groupValues?.get(1)
 
