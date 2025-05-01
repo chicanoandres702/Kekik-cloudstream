@@ -114,55 +114,48 @@ class KissasianProvider : MainAPI() {
         }
     }
 
-    override suspend fun load(url: String): LoadResponse? {
-        Log.i("Kissasian", "Loading details page: $url")
-        return try {
-            val document = cfKiller(url).document
+override suspend fun load(url: String): LoadResponse? {
+    Log.i("Kissasian", "Loading details page: $url")
+    return try {
+        val document = cfKiller(url).document
 
-            val title = document.select("div.details h1").text().trim()
-            val posterUrl = document.select("div.details div.img img").attr("src")
-            val description = document.select("div.description p").text().trim()
-            val genres = document.select("div.details div.meta a[rel=tag]").map { it.text() }
-            val year = document.select("div.details div.meta span.year").text().toIntOrNull()
+        val title = document.select("#top > div.container > div.content > div.content-left > div.block > div.details > div.img > img").attr("alt").trim()
+        val posterUrl = document.select("#top > div.container > div.content > div.content-left > div.block > div.details > div.img > img").attr("src")
+        val description = document.select(".block-watch p").text()
 
-            val episodes = document.select("div.listing div.episode").mapNotNull { episodeElement ->
-                try {
-                    val epTitle = episodeElement.select("h3.title").text()
-                    val epHref = episodeElement.select("a").attr("href")
-                    val epNum = epTitle.extractEpisodeNumber()
+        val episodes = document.select(".all-episode li").mapNotNull { episodeElement ->
+            try {
+                val episodeUrl = episodeElement.select("a").attr("href")
+                val episodeNum = episodeElement.select("h3.title").text().extractEpisodeNumber()
+                Log.i("Kissasian", "Found episode: URL=$episodeUrl, Number=$episodeNum")
 
-                    Episode(
-                        data = fixUrl(epHref),
-                        name = epTitle,
-                        episode = epNum
-                    )
-                } catch (e: Exception) {
-                    Log.e("Kissasian", "Error processing episode element: ${episodeElement.text()} - ${e.message}")
-                    null
-                }
+                Episode(
+                    data = fixUrl(episodeUrl),
+                    episode = episodeNum
+                )
+            } catch (e: Exception) {
+                Log.e("Kissasian", "Error processing episode element: ${episodeElement.text()} - ${e.message}")
+                null
             }
-
-            val isMovie = url.contains("/movie/") || title.contains("Movie", true)
-            if (isMovie) {
-                newMovieLoadResponse(title, url, TvType.Movie, url) {
-                    this.posterUrl = fixUrlNull(posterUrl)
-                    this.plot = description
-                    this.tags = genres
-                    this.year = year
-                }
-            } else {
-                newTvSeriesLoadResponse(title, url, TvType.AsianDrama, episodes) {
-                    this.posterUrl = fixUrlNull(posterUrl)
-                    this.plot = description
-                    this.tags = genres
-                    this.year = year
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("Kissasian", "Error loading details page: $url - ${e.message}")
-            null
         }
+
+        val isMovie = url.contains("/movie/") || title.contains("Movie", true)
+        if (isMovie) {
+            newMovieLoadResponse(title, url, TvType.Movie, url) {
+                this.posterUrl = fixUrlNull(posterUrl)
+                this.plot = description
+            }
+        } else {
+            newTvSeriesLoadResponse(title, url, TvType.AsianDrama, episodes) {
+                this.posterUrl = fixUrlNull(posterUrl)
+                this.plot = description
+            }
+        }
+    } catch (e: Exception) {
+        Log.e("Kissasian", "Error loading details page: $url - ${e.message}")
+        null
     }
+}
 
     override suspend fun loadLinks(
         data: String,
