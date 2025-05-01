@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.network.CloudflareKiller
 import kotlinx.coroutines.runBlocking
 import org.jsoup.nodes.Element
 import com.lagradost.nicehttp.NiceResponse
+import android.widget.Toast
 
 class KissasianProvider : MainAPI() {
     override var mainUrl = "https://kissasian.com.lv"
@@ -158,39 +159,131 @@ override suspend fun load(url: String): LoadResponse? {
 }
 
     override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        Log.i("Kissasian", "Loading links for: $data")
-        return try {
-            val document = cfKiller(data).document
-            val iframeUrl = document.select("#block-tab-video iframe").attr("src")
-            Log.i("Kissasian", "Found iframe URL: $iframeUrl")
+    data: String,
+    isCasting: Boolean,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+): Boolean {
+    Log.i("Kissasian", "Loading links for: $data")
+    return try {
+        val document = cfKiller(data).document
+        val iframeUrl = document.select("#block-tab-video iframe").attr("src")
+        Log.i("Kissasian", "Found iframe URL: $iframeUrl")
+        
+        app.activity?.runOnUiThread {
+            Toast.makeText(app.context, "Found iframe: $iframeUrl", Toast.LENGTH_LONG).show()
+        }
 
-            if (iframeUrl.isNotEmpty()) {
-                val fixedUrl = if (iframeUrl.startsWith("//")) "https:$iframeUrl" else iframeUrl
-                
-                when {
-                    fixedUrl.contains("vidmoly.to") -> {
-                        handleVidmolySource(fixedUrl, subtitleCallback, callback)
+        if (iframeUrl.isNotEmpty()) {
+            val fixedUrl = if (iframeUrl.startsWith("//")) "https:$iframeUrl" else iframeUrl
+            
+            when {
+                fixedUrl.contains("vidmoly.to") -> {
+                    app.activity?.runOnUiThread {
+                        Toast.makeText(app.context, "Processing Vidmoly link", Toast.LENGTH_LONG).show()
                     }
-                    else -> {
-                        loadExtractor(fixedUrl, data, subtitleCallback, callback)
-                    }
+                    handleVidmolySource(fixedUrl, subtitleCallback, callback)
                 }
-                true
-            } else {
-                Log.w("Kissasian", "No iframe URL found")
-                false
+                else -> {
+                    app.activity?.runOnUiThread {
+                        Toast.makeText(app.context, "Using default extractor for: $fixedUrl", Toast.LENGTH_LONG).show()
+                    }
+                    loadExtractor(fixedUrl, data, subtitleCallback, callback)
+                }
             }
-        } catch (e: Exception) {
-            Log.e("Kissasian", "Error loading links: ${e.message}")
+            true
+        } else {
+            app.activity?.runOnUiThread {
+                Toast.makeText(app.context, "No iframe URL found", Toast.LENGTH_LONG).show()
+            }
+            Log.w("Kissasian", "No iframe URL found")
             false
         }
+    } catch (e: Exception) {
+        app.activity?.runOnUiThread {
+            Toast.makeText(app.context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+        Log.e("Kissasian", "Error loading links: ${e.message}")
+        false
     }
+}
 
+private suspend fun handleVidmolySource(
+    url: String,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+): Boolean {
+    return try {
+        val response = cfKiller(url)
+        val document = response.document
+
+        // Extract video URL from JWPlayer setup
+        val videoSourcesPattern = """sources:\s*$$\{file:"([^"]+)"\}$$""".toRegex()
+        val match = videoSourcesPattern.find(document.html())
+        val videoUrl = match?.groupValues?.get(1)
+
+        app.activity?.runOnUiThread {
+            Toast.makeText(app.context, "Found video URL: $videoUrl", Toast.LENGTH_LONG).show()
+        }
+
+        if (!videoUrl.isNullOrEmpty()) {
+            if (videoUrl.contains(".m3u8")) {
+                app.activity?.runOnUiThread {
+                    Toast.makeText(app.context, "Processing M3U8 stream", Toast.LENGTH_LONG).show()
+                }
+                M3u8Helper.generateM3u8(
+                    source = name,
+                    streamUrl = videoUrl,
+                    referer = url
+                ).forEach(callback)
+            } else {
+                app.activity?.runOnUiThread {
+                    Toast.makeText(app.context, "Processing direct video link", Toast.LENGTH_LONG).show()
+                }
+                callback.invoke(
+                    newExtractorLink(
+                        source = name,
+                        name = name,
+                        url = videoUrl
+                    ) {
+                        this.quality = 720
+                        this.referer = url
+                    }
+                )
+            }
+
+            // Extract subtitles
+            document.select("tracks").forEach { track ->
+                val subtitleUrl = track.attr("file")
+                val label = track.attr("label")
+                if (subtitleUrl.isNotEmpty() && subtitleUrl.endsWith(".vtt")) {
+                    app.activity?.runOnUiThread {
+                        Toast.makeText(app.context, "Found subtitle: $label", Toast.LENGTH_LONG).show()
+                    }
+                    subtitleCallback.invoke(
+                        SubtitleFile(
+                            lang = label,
+                            url = subtitleUrl
+                        )
+                    )
+                }
+            }
+            true
+        } else {
+            app.activity?.runOnUiThread {
+                Toast.makeText(app.context, "No video URL found in player setup", Toast.LENGTH_LONG).show()
+            }
+            Log.w("Vidmoly", "No video URL found")
+            false
+        }
+    } catch (e: Exception) {
+        app.activity?.runOnUiThread {
+            Toast.makeText(app.context, "Vidmoly error: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+        Log.e("Vidmoly", "Error handling Vidmoly source: ${e.message}")
+        false
+    }
+}
 private suspend fun handleVidmolySource(
     url: String,
     subtitleCallback: (SubtitleFile) -> Unit,
