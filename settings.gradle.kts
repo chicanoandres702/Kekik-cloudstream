@@ -16,5 +16,5 @@ val disabled = listOf<String>("__Temel")
 
 
 // To only include a single project, comment out the previous lines (except the first one), and include your plugin like so:
-include("Kissasian")
+//include("Kissasian")
 include("Dramacool")
