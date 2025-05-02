@@ -1,8 +1,8 @@
 group = "com.demonstratorz" // Replace with your group ID
-version = 13 // Integer version number
+version = 1 // Integer version number
 
 cloudstream {
-    description = "Kissasian Provider"
+    description = "Dramacool Provider"
     authors = listOf("Andrew (Demonstratorz)")
     iconUrl = "https://www.google.com/s2/favicons?domain=kisskh.co&sz=%size%"
     status = 1
