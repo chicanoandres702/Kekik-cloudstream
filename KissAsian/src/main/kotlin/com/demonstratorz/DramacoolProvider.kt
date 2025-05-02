@@ -1,5 +1,6 @@
-package com.lagradost.cloudstream3.providers // Correct package assumed
+package com.lagradost.cloudstream3.providers // Ensure this is your correct package
 
+import com.fasterxml.jackson.annotation.JsonProperty // Import for JSON annotation
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.* // Wildcard import kept for brevity
@@ -9,8 +10,9 @@ import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
-import com.lagradost.cloudstream3.mapper.parseJson // Added import
-import com.lagradost.cloudstream3.utils.Coroutines.apmapNotNull // Added import
+import com.lagradost.cloudstream3.mapper.readValue // Use mapper's readValue
+import com.lagradost.cloudstream3.utils.AppUtils.mapper // Import the mapper object
+import com.lagradost.cloudstream3.utils.Coroutines.apmapNotNull // Correct import
 
 class DramacoolProvider : MainAPI() {
     // Provider metadata
@@ -21,14 +23,13 @@ class DramacoolProvider : MainAPI() {
     override val supportedTypes = setOf(
         TvType.AsianDrama,
         TvType.Movie,
-        TvType.TvShow // Correct usage
+        TvType.TvShow // Corrected: Use TvType.TvShow
     )
 
     // Companion object for utilities
     companion object {
         // Cloudflare bypass utility
         private suspend fun cfKiller(url: String): NiceResponse {
-            // No changes needed here, assuming app.get handles CF correctly
             val response = app.get(url)
             Log.d("DramacoolProvider", "cfKiller: Initial GET for $url returned status code ${response.code}")
             return if (response.document.selectFirst("title")?.text() == "Just a moment...") {
@@ -54,7 +55,7 @@ class DramacoolProvider : MainAPI() {
 
         // Analyze link type and structure
         fun getLinkInfo(element: Element?, initialUrl: String? = null): LinkInfo? {
-            val aTag = element?.selectFirst("a.img") ?: element?.selectFirst("a") // Use selectFirst
+            val aTag = element?.selectFirst("a.img") ?: element?.selectFirst("a")
             val url = initialUrl ?: aTag?.attr("href") ?: return null
             if (url.isBlank()) return null
 
@@ -63,7 +64,7 @@ class DramacoolProvider : MainAPI() {
 
             val type = when {
                 url.contains("/movie/", ignoreCase = true) || url.contains("-movie-", ignoreCase = true) -> TvType.Movie
-                url.contains("/kshow/", ignoreCase = true) || typeSpan == "KSHOW" -> TvType.TvShow // Correct usage
+                url.contains("/kshow/", ignoreCase = true) || typeSpan == "KSHOW" -> TvType.TvShow // Corrected: Use TvType.TvShow
                 url.contains("/drama-detail/", ignoreCase = true) -> TvType.AsianDrama
                 !url.contains("/drama-detail/", ignoreCase = true) && (url.endsWith(".html") || url.contains("-episode-")) -> TvType.AsianDrama
                 h3Title?.contains("Movie", ignoreCase = true) == true || typeSpan == "MOVIE" -> TvType.Movie
@@ -78,29 +79,28 @@ class DramacoolProvider : MainAPI() {
         }
 
         // Get the main show detail URL from an episode page
-        // Pass 'provider' explicitly for fixUrl access if needed outside instance methods
         suspend fun getDetailUrlFromEpisode(episodeUrl: String, providerInstance: DramacoolProvider): String? {
             return try {
-                val fixedEpisodeUrl = providerInstance.fixUrl(episodeUrl) // Use instance fixUrl
+                val fixedEpisodeUrl = providerInstance.fixUrl(episodeUrl)
                 Log.d(providerInstance.name, "Fetching episode page to find detail URL: $fixedEpisodeUrl")
                 val episodeDoc = cfKiller(fixedEpisodeUrl).document
                 val detailLink = episodeDoc.selectFirst("div.info-drama div.category a[href*='/drama-detail/']")?.attr("href")
-                    ?: episodeDoc.select("script[type=\"application/ld+json\"]").mapNotNull { script -> // Explicit type Element -> JsonLdSchema?
+                    ?: episodeDoc.select("script[type=\"application/ld+json\"]").mapNotNull { script ->
                             try {
                                 val json = script.data()
                                 if (json.contains("BreadcrumbList") && json.contains("/drama-detail/")) {
-                                    // Use parseJson with proper error handling
+                                    // Use AppUtils.mapper and correct generic type
                                     val parsedList = mapper.readValue<List<JsonLdSchema>>(json)
-                                    parsedList.find { schema -> schema.`@type` == "BreadcrumbList" }
+                                    parsedList.find { schema -> schema.type == "BreadcrumbList" } // Access fixed type field
                                         ?.itemListElement
                                         ?.find { listItem -> listItem.item?.contains("/drama-detail/") == true }
                                         ?.item
                                 } else null
                             } catch (e: Exception) {
-                                Log.e(providerInstance.name, "JSON-LD parsing failed for script: ${script.data().take(100)}...", e)
-                                null // Ignore parsing errors
+                                Log.e(providerInstance.name, "JSON-LD parsing failed", e)
+                                null
                             }
-                        }.firstOrNull() // Take the first valid one found
+                        }.firstOrNull()
 
                 if (detailLink != null) {
                     Log.d(providerInstance.name, "Found detail URL: $detailLink from episode page: $fixedEpisodeUrl")
@@ -109,22 +109,20 @@ class DramacoolProvider : MainAPI() {
                 }
                 detailLink
             } catch (e: Exception) {
-                // Use correct Log.e signature
-                Log.e(providerInstance.name, "Failed to get detail URL from episode page $episodeUrl", e)
+                Log.e(providerInstance.name, "Failed to get detail URL from episode page $episodeUrl", e) // Correct Log.e
                 null
             }
         }
 
-        // Helper class for JSON-LD parsing
-        // Add @JsonProperty if names differ significantly or have special characters
+        // Helper class for JSON-LD parsing with @JsonProperty
         data class JsonLdSchema(
-            @com.fasterxml.jackson.annotation.JsonProperty("@context") val context: String? = null,
-            @com.fasterxml.jackson.annotation.JsonProperty("@type") val type: String? = null,
+            @JsonProperty("@context") val context: String? = null,
+            @JsonProperty("@type") val type: String? = null, // Renamed for consistency, access via .type
             val itemListElement: List<ListItemSchema>? = null
         )
 
         data class ListItemSchema(
-             @com.fasterxml.jackson.annotation.JsonProperty("@type") val type: String? = null,
+             @JsonProperty("@type") val type: String? = null, // Renamed for consistency
              val position: Int? = null,
              val name: String? = null,
              val item: String? = null
@@ -155,22 +153,21 @@ class DramacoolProvider : MainAPI() {
 
         return try {
             val document = cfKiller(fixUrl(pageUrl)).document
-            val items = document.select("ul.list-episode-item li, ul.list-drama li").apmapNotNull { element: Element -> // Explicit type
+            val items = document.select("ul.list-episode-item li, ul.list-drama li").apmapNotNull { element: Element -> // Use apmapNotNull with explicit type
                 try {
                     val initialLinkInfo = getLinkInfo(element) ?: return@apmapNotNull null
-                    val posterUrl = element.selectFirst("img.lazy")?.attr("data-original") // Use selectFirst
+                    val posterUrl = element.selectFirst("img.lazy")?.attr("data-original")
                                     ?: element.selectFirst("img")?.attr("src")
 
                     val (finalTitle: String, detailUrl: String?) = if (initialLinkInfo.isDirectEpisodeLink) {
-                        // Pass 'this' instance to the companion function
                         val canonicalUrl = getDetailUrlFromEpisode(initialLinkInfo.url, this)
-                        val showTitle = element.selectFirst("h3.title")?.text() // Use selectFirst
+                        val showTitle = element.selectFirst("h3.title")?.text()
                             ?.replace(Regex("""\s+Episode\s+\d+$""", RegexOption.IGNORE_CASE), "")
                             ?.replace(Regex("""\s+EP\s+\d+$""", RegexOption.IGNORE_CASE), "")
                             ?.trim() ?: "Unknown Show"
                         Pair(showTitle, canonicalUrl)
                     } else {
-                        val showTitle = element.selectFirst("h3.title")?.text()?.trim() ?: "Unknown" // Use selectFirst
+                        val showTitle = element.selectFirst("h3.title")?.text()?.trim() ?: "Unknown"
                         Pair(showTitle, initialLinkInfo.url)
                     }
 
@@ -183,24 +180,21 @@ class DramacoolProvider : MainAPI() {
                         TvType.Movie -> newMovieSearchResponse(finalTitle, fixUrl(detailUrl), initialLinkInfo.type) {
                             this.posterUrl = fixUrlNull(posterUrl)
                         }
-                        // Use the imported newTvShowSearchResponse
                         else -> newTvShowSearchResponse(finalTitle, fixUrl(detailUrl), initialLinkInfo.type) {
-                            this.posterUrl = fixUrlNull(posterUrl) // 'this' refers to the response being built
+                            this.posterUrl = fixUrlNull(posterUrl)
                         }
                     }
                 } catch (e: Exception) {
-                    // Use correct Log.e signature
-                    Log.e(name, "Error processing main page element: ${element.html()?.take(100)}...", e)
+                    Log.e(name, "Error processing main page element: ${element.html()?.take(100)}...", e) // Correct Log.e
                     null
                 }
             }
 
-            val hasNextPage = document.selectFirst("ul.pagination li.next a, div.pagination a.next, li.next > a") != null // Use selectFirst
+            val hasNextPage = document.selectFirst("ul.pagination li.next a, div.pagination a.next, li.next > a") != null
 
             newHomePageResponse(list = HomePageList(request.name, items), hasNext = hasNextPage)
         } catch (e: Exception) {
-            // Use correct Log.e signature
-            Log.e(name, "Error getting main page: $pageUrl", e)
+            Log.e(name, "Error getting main page: $pageUrl", e) // Correct Log.e
              HomePageResponse(emptyList(), false) // Fallback
         }
     }
@@ -214,19 +208,19 @@ class DramacoolProvider : MainAPI() {
             document.select("ul.list-episode-item li").apmapNotNull { element: Element -> // Explicit type
                 try {
                      val initialLinkInfo = getLinkInfo(element) ?: return@apmapNotNull null
-                     val posterUrl = element.selectFirst("img.lazy")?.attr("data-original") // Use selectFirst
+                     val posterUrl = element.selectFirst("img.lazy")?.attr("data-original")
                                     ?: element.selectFirst("img")?.attr("src")
 
                      val (finalTitle: String, detailUrl: String?) = if (initialLinkInfo.isDirectEpisodeLink) {
                          Log.w(name, "Search result link is direct episode: ${initialLinkInfo.url}. Resolving...")
-                         val canonicalUrl = getDetailUrlFromEpisode(initialLinkInfo.url, this) // Pass 'this' instance
-                         val showTitle = element.selectFirst("h3.title")?.text() // Use selectFirst
+                         val canonicalUrl = getDetailUrlFromEpisode(initialLinkInfo.url, this)
+                         val showTitle = element.selectFirst("h3.title")?.text()
                             ?.replace(Regex("""\s+Episode\s+\d+$""", RegexOption.IGNORE_CASE), "")
                             ?.replace(Regex("""\s+EP\s+\d+$""", RegexOption.IGNORE_CASE), "")
                             ?.trim() ?: "Unknown Show"
                          Pair(showTitle, canonicalUrl)
                      } else {
-                         val showTitle = element.selectFirst("h3.title")?.text()?.trim() ?: "Unknown" // Use selectFirst
+                         val showTitle = element.selectFirst("h3.title")?.text()?.trim() ?: "Unknown"
                          Pair(showTitle, initialLinkInfo.url)
                      }
 
@@ -239,27 +233,25 @@ class DramacoolProvider : MainAPI() {
 
                      when (initialLinkInfo.type) {
                          TvType.Movie -> newMovieSearchResponse(finalTitle, fixUrl(detailUrl), initialLinkInfo.type) { this.posterUrl = fixUrlNull(posterUrl) }
-                         // Use imported newTvShowSearchResponse
-                         else -> newTvShowSearchResponse(finalTitle, fixUrl(detailUrl), initialLinkInfo.type) { this.posterUrl = fixUrlNull(posterUrl) } // Correct usage
+                         else -> newTvShowSearchResponse(finalTitle, fixUrl(detailUrl), initialLinkInfo.type) { this.posterUrl = fixUrlNull(posterUrl) }
                      }
                 } catch (e: Exception) {
-                    // Use correct Log.e signature
-                    Log.e(name, "Error processing search result element: ${element.html()?.take(100)}...", e)
+                    Log.e(name, "Error processing search result element: ${element.html()?.take(100)}...", e) // Correct Log.e
                     null
                 }
             }
         } catch (e: Exception) {
-            // Use correct Log.e signature
-            Log.e(name, "Error during search for '$query'", e)
+            Log.e(name, "Error during search for '$query'", e) // Correct Log.e
             emptyList()
         }
     }
+
 
     override suspend fun load(url: String): LoadResponse? {
         Log.i(name, "Attempting to load details page: $url")
         val detailUrl = if (!url.contains("/drama-detail/", ignoreCase = true)) {
              Log.w(name, "Load function called with non-detail URL: $url. Attempting to recover...")
-             val recovered = getDetailUrlFromEpisode(url, this) // Pass 'this' instance
+             val recovered = getDetailUrlFromEpisode(url, this)
              if (recovered == null) {
                  Log.e(name, "Could not recover detail URL from $url. Aborting load.")
                  return null
@@ -271,19 +263,20 @@ class DramacoolProvider : MainAPI() {
         }
         Log.i(name, "Loading resolved details page: $detailUrl")
 
+
         return try {
             val document = cfKiller(detailUrl).document
 
-            val title = document.selectFirst(".details .info h1")?.text()?.trim() // Use selectFirst
+            val title = document.selectFirst(".details .info h1")?.text()?.trim()
                         ?: document.selectFirst("meta[property='og:title']")?.attr("content")?.trim()
                         ?: return null
 
-            val posterUrl = document.selectFirst(".details .thumbnail img")?.attr("src") // Use selectFirst
-                         ?: document.selectFirst(".details .img img")?.attr("src") // Use selectFirst
+            val posterUrl = document.selectFirst(".details .thumbnail img")?.attr("src")
+                         ?: document.selectFirst(".details .img img")?.attr("src")
                          ?: document.selectFirst("meta[property='og:image']")?.attr("content")
 
-            val plot = document.selectFirst("div.info p:has(strong:containsOwn(Description)) + p")?.text()?.trim() // Use selectFirst
-                       ?: document.selectFirst(".details .info p:not(:has(strong)):not(:contains(Other name))")?.text() // Use selectFirst
+            val plot = document.selectFirst("div.info p:has(strong:containsOwn(Description)) + p")?.text()?.trim()
+                       ?: document.selectFirst(".details .info p:not(:has(strong)):not(:contains(Other name))")?.text()
                        ?: document.selectFirst("meta[property='og:description']")?.attr("content")?.trim()
 
             Log.i(name, "Title: $title")
@@ -300,7 +293,7 @@ class DramacoolProvider : MainAPI() {
                         ?: document.selectFirst("p:contains(Released:)")?.ownText()?.trim())?.toIntOrNull()
             val genres = document.select("p:contains(Genre:) a").mapNotNull { it.text() }
 
-            val recommendations = document.select("ul.list-episode-item li").mapNotNull { recElement -> // Use mapNotNull (parallel not needed here)
+            val recommendations = document.select("ul.list-episode-item li").mapNotNull { recElement ->
                  try {
                     val linkInfoRec = getLinkInfo(recElement) ?: return@mapNotNull null
                     if (linkInfoRec.isDirectEpisodeLink) return@mapNotNull null
@@ -309,7 +302,7 @@ class DramacoolProvider : MainAPI() {
 
                     when (linkInfoRec.type) {
                         TvType.Movie -> newMovieSearchResponse(recTitle, fixUrl(linkInfoRec.url), linkInfoRec.type) { this.posterUrl = fixUrlNull(recPoster) }
-                        else -> newTvShowSearchResponse(recTitle, fixUrl(linkInfoRec.url), linkInfoRec.type) { this.posterUrl = fixUrlNull(recPoster) } // Correct usage
+                        else -> newTvShowSearchResponse(recTitle, fixUrl(linkInfoRec.url), linkInfoRec.type) { this.posterUrl = fixUrlNull(recPoster) }
                     }
                  } catch (e: Exception) { null }
             }.take(15)
@@ -322,7 +315,7 @@ class DramacoolProvider : MainAPI() {
                     this.posterUrl = fixUrlNull(posterUrl)
                     this.plot = plot
                     this.year = year
-                    this.showStatus = status // Correct field name
+                    this.showStatus = status
                     this.tags = genres
                     this.recommendations = recommendations
                 }
@@ -332,11 +325,11 @@ class DramacoolProvider : MainAPI() {
 
                 val episodes = episodeElements.mapNotNull { epElement ->
                     try {
-                        val aTag = epElement.selectFirst("a") ?: return@mapNotNull null // Use selectFirst
+                        val aTag = epElement.selectFirst("a") ?: return@mapNotNull null
                         val epLink = aTag.attr("href")
                         if (epLink.isNullOrBlank()) return@mapNotNull null
 
-                        val epTitle = aTag.selectFirst("h3.title")?.text()?.trim() // Use selectFirst
+                        val epTitle = epElement.selectFirst("h3.title")?.text()?.trim()
                         val epNum = epTitle.extractEpisodeNumber()
 
                         Episode(
@@ -345,8 +338,7 @@ class DramacoolProvider : MainAPI() {
                             episode = epNum,
                         )
                     } catch (e: Exception) {
-                         // Use correct Log.e signature
-                        Log.e(name, "Error processing episode element: ${epElement.html()?.take(100)}...", e)
+                        Log.e(name, "Error processing episode element: ${epElement.html()?.take(100)}...", e) // Correct Log.e
                         null
                     }
                 }.reversed()
@@ -357,17 +349,17 @@ class DramacoolProvider : MainAPI() {
                     this.posterUrl = fixUrlNull(posterUrl)
                     this.plot = plot
                     this.year = year
-                    this.showStatus = status // Correct field name
+                    this.showStatus = status
                     this.tags = genres
                     this.recommendations = recommendations
                 }
             }
         } catch (e: Exception) {
-             // Use correct Log.e signature
-            Log.e(name, "Error loading details page: $detailUrl", e)
+            Log.e(name, "Error loading details page: $detailUrl", e) // Correct Log.e
             null
         }
     }
+
 
     override suspend fun loadLinks(
         data: String,
@@ -390,7 +382,8 @@ class DramacoolProvider : MainAPI() {
 
             if (servers.isNotEmpty()) {
                 Log.d(name, "Found ${servers.size} server tabs from div.muti_link")
-                servers.apmapNotNull { serverElement : Element -> // Explicit type, use apmapNotNull
+                // Use apmapNotNull, specify lambda parameter type, return Boolean result of loadExtractor
+                val results = servers.apmapNotNull { serverElement: Element ->
                     try {
                         val serverName = serverElement.ownText().trim().ifBlank { serverElement.text().replace("Choose this server", "").trim() }
                         var videoUrl = serverElement.attr("data-video")
@@ -404,17 +397,19 @@ class DramacoolProvider : MainAPI() {
 
                         Log.i(name, "Processing Server: '$serverName', Embed URL: '$videoUrl'")
 
-                        // Return the result of loadExtractor directly
+                        // Return the result of loadExtractor directly (Boolean: true if attempted)
                         loadExtractor(videoUrl, fixedDataUrl, subtitleCallback, callback)
                     } catch (e: Exception) {
-                         // Use correct Log.e signature
-                         Log.e(name, "Error processing server ${serverElement.text()}", e)
+                         Log.e(name, "Error processing server ${serverElement.text()}", e) // Correct Log.e
                          false // Indicate failure
                     }
-                }.any { it }.also { sourcesLoaded = it } // Check if *any* server loading succeeded
+                }
+                // Check if *any* of the loadExtractor calls returned true (meaning they attempted extraction)
+                sourcesLoaded = results.any { it }
+
             } else {
                  Log.d(name, "No server tabs found in div.muti_link, looking for default player iframe")
-                 val iframe = document.selectFirst("div.watch_video.watch-iframe iframe[src], #block-tab-video iframe[src]") // Use selectFirst
+                 val iframe = document.selectFirst("div.watch_video.watch-iframe iframe[src], #block-tab-video iframe[src]")
                  val iframeUrl = iframe?.attr("src")
 
                  if (!iframeUrl.isNullOrBlank()) {
@@ -427,12 +422,11 @@ class DramacoolProvider : MainAPI() {
             }
 
             if (!sourcesLoaded) {
-                 Log.w(name, "No extractor links were successfully loaded for $fixedDataUrl")
+                 Log.w(name, "No sources were successfully processed or found for $fixedDataUrl")
             }
 
         } catch (e: Exception) {
-            // Use correct Log.e signature
-            Log.e(name, "Error in loadLinks for $data", e)
+            Log.e(name, "Error in loadLinks for $data", e) // Correct Log.e
         }
         return sourcesLoaded
     }
@@ -442,35 +436,15 @@ class DramacoolProvider : MainAPI() {
         return url?.let { fixUrl(it) }
     }
 
-    // No override keyword needed here
+    // No override keyword needed for helper functions within the class
     fun fixUrl(url: String): String {
+        // Extract the base domain (protocol + host) from mainUrl
         val currentDomain = Regex("""^(https?://[^/]+)""").find(mainUrl)?.groupValues?.get(1) ?: mainUrl
         return when {
             url.startsWith("//") -> "https:$url"
             url.startsWith("/") -> currentDomain + url
-            !url.startsWith("http") -> "$currentDomain/$url"
+            !url.startsWith("http") -> "$currentDomain/$url" // Assume relative path if no scheme
             else -> url
         }.trim()
     }
-}
-
-// ======================================================================
-// IMPORTANT: You also need a plugin registration file.
-// Create a file named DramacoolProviderPlugin.kt (or similar)
-// in the same directory or a parent directory recognised by your build setup.
-// ======================================================================
-
-/* Example: DramacoolProviderPlugin.kt */
-package com.lagradost.cloudstream3.providers
-
-import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.plugins.Plugin
-import android.content.Context
-
-@CloudstreamPlugin
-class DramacoolProviderPlugin: Plugin() {
-    override fun load(context: Context) {
-        // All providers should be added in this manner
-        registerMainAPI(DramacoolProvider()) // Register the fixed provider
-    }
-}
+} // End DramacoolProvider Class
